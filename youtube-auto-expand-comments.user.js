@@ -10,7 +10,7 @@
 // @name:de      YouTube-Kommentare automatisch erweitern ✅
 // @name:pt-BR   Expandir automaticamente os comentários do YouTube ✅
 // @name:ru      Авторазворачивание комментариев на YouTube ✅
-// @version      2.8.0
+// @version      2.9.0
 // @description         安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
 // @description:en      Reliably auto-expands YouTube comments, replies, and "Show more replies". Fully updated for current UI.
 // @description:zh-CN   稳定展开YouTube评论和回复，包括“显示更多回复”。兼容新界面。
