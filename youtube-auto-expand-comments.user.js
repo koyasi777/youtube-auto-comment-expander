@@ -32,49 +32,44 @@
 // @supportURL   https://github.com/koyasi777/youtube-auto-expand-comments/issues
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
-    const CONFIG = Object.freeze({
-        SCROLL_THROTTLE: 250,
-        MUTATION_THROTTLE: 150,
+    const CONFIG = {
         INITIAL_DELAY: 1500,
         CLICK_INTERVAL: 500,
         EXPANDED_CLASS: 'yt-auto-expanded',
         DEBUG: false
-    });
+    };
 
-    const SELECTORS = Object.freeze({
+    const SELECTORS = {
         COMMENTS: 'ytd-comments#comments',
         COMMENT_THREAD: 'ytd-comment-thread-renderer',
         MORE_COMMENTS: 'ytd-continuation-item-renderer #button:not([disabled])',
         SHOW_REPLIES: '#more-replies > yt-button-shape > button:not([disabled])',
         HIDDEN_REPLIES: 'ytd-comment-replies-renderer ytd-button-renderer#more-replies button:not([disabled])',
-        CONTINUATION_REPLIES: 'ytd-comment-replies-renderer ytd-continuation-item-renderer ytd-button-renderer button:not([disabled])'
-    });
+        CONTINUATION_REPLIES: 'ytd-comment-replies-renderer ytd-continuation-item-renderer ytd-button-renderer button:not([disabled])',
+        NOTIFICATION_TOOLTIP: 'ytd-notification-topbar-button-renderer tp-yt-paper-tooltip'
+    };
 
     class YouTubeCommentExpander {
         constructor() {
             this.observer = null;
-            this.isProcessing = false;
+            this.io = null;
+            this.ioTargets = [];
+            this.ioControlInterval = null;
             this.expandedComments = new Set();
-            this.scrollHandler = this.throttle(() => this.processVisibleElements(), CONFIG.SCROLL_THROTTLE);
         }
 
         log(...args) {
             if (CONFIG.DEBUG) console.log('[YTCExpander]', ...args);
         }
 
-        throttle(fn, delay) {
-            let last = 0;
-            return (...args) => {
-                const now = Date.now();
-                if (now - last >= delay) {
-                    last = now;
-                    fn.apply(this, args);
-                }
-            };
+        isNotificationOpen() {
+            const notificationBtn = document.querySelector('ytd-notification-topbar-button-renderer button[aria-expanded="true"]');
+            return !!notificationBtn;
         }
+
 
         getCommentId(thread) {
             const timestamp = thread.querySelector('#header-author time')?.getAttribute('datetime') || '';
@@ -93,10 +88,12 @@
 
         async clickElements(selector) {
             const elements = Array.from(document.querySelectorAll(selector));
-            let clickedAny = false;
             for (const el of elements) {
                 const thread = el.closest(SELECTORS.COMMENT_THREAD);
                 if (thread && this.isCommentExpanded(thread)) continue;
+
+                const inComment = thread || el.closest(SELECTORS.COMMENTS);
+                if (!inComment) continue;
 
                 el.scrollIntoView({ behavior: 'auto', block: 'center' });
                 await new Promise(r => setTimeout(r, 100));
@@ -105,65 +102,72 @@
 
                 try {
                     el.click();
-                    clickedAny = true;
                     if (thread) this.markAsExpanded(thread);
-                    this.log('Clicked:', selector);
                     await new Promise(r => setTimeout(r, CONFIG.CLICK_INTERVAL));
                 } catch (e) {
                     this.log('Click error:', e);
                 }
             }
-            return clickedAny;
         }
 
         async processVisibleElements() {
-            if (this.isProcessing) return;
-            this.isProcessing = true;
-            try {
-                let loop;
-                do {
-                    loop = false;
-                    loop = await this.clickElements(SELECTORS.MORE_COMMENTS) || loop;
-                    loop = await this.clickElements(SELECTORS.SHOW_REPLIES) || loop;
-                    loop = await this.clickElements(SELECTORS.HIDDEN_REPLIES) || loop;
-                    loop = await this.clickElements(SELECTORS.CONTINUATION_REPLIES) || loop;
-                } while (loop);
-            } finally {
-                this.isProcessing = false;
-            }
+            await this.clickElements(SELECTORS.MORE_COMMENTS);
+            await this.clickElements(SELECTORS.SHOW_REPLIES);
+            await this.clickElements(SELECTORS.HIDDEN_REPLIES);
+            await this.clickElements(SELECTORS.CONTINUATION_REPLIES);
         }
 
         setupMutationObserver() {
             const container = document.querySelector(SELECTORS.COMMENTS);
             if (!container) return false;
-            this.observer = new MutationObserver(this.throttle(() => {
-                this.processVisibleElements();
-            }, CONFIG.MUTATION_THROTTLE));
+            this.observer = new MutationObserver(() => this.processVisibleElements());
             this.observer.observe(container, { childList: true, subtree: true });
             return true;
         }
 
         setupIntersectionObserver() {
-            const io = new IntersectionObserver(entries => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        try { entry.target.click(); }
-                        catch(e) { this.log('IO click error', e); }
+            this.io = new IntersectionObserver(entries => {
+                if (this.isNotificationOpen()) return;
+                for (const entry of entries) {
+                    const inComment = entry.target.closest(SELECTORS.COMMENT_THREAD) || entry.target.closest(SELECTORS.COMMENTS);
+                    if (entry.isIntersecting && inComment) {
+                        try {
+                            entry.target.click();
+                        } catch (e) {
+                            this.log('IO click error', e);
+                        }
                     }
-                });
-            }, { rootMargin: '0px', threshold: 0 });
+                }
+            });
 
-            const observeButtons = () => {
-                document.querySelectorAll(
+            const register = () => {
+                const buttons = document.querySelectorAll(
                     `${SELECTORS.MORE_COMMENTS},${SELECTORS.SHOW_REPLIES},${SELECTORS.HIDDEN_REPLIES},${SELECTORS.CONTINUATION_REPLIES}`
-                ).forEach(btn => io.observe(btn));
+                );
+                this.ioTargets = Array.from(buttons).filter(btn =>
+                    btn.closest(SELECTORS.COMMENT_THREAD) || btn.closest(SELECTORS.COMMENTS)
+                );
+                this.ioTargets.forEach(btn => this.io.observe(btn));
             };
 
-            observeButtons();
+            register();
+
             const container = document.querySelector(SELECTORS.COMMENTS);
             if (container) {
-                new MutationObserver(observeButtons).observe(container, { childList: true, subtree: true });
+                new MutationObserver(register).observe(container, { childList: true, subtree: true });
             }
+
+            this.ioControlInterval = setInterval(() => {
+                if (this.isNotificationOpen()) {
+                    this.io.disconnect();
+                } else {
+                    this.ioTargets.forEach(el => {
+                        try {
+                            this.io.observe(el);
+                        } catch {}
+                    });
+                }
+            }, 500);
         }
 
         async init() {
@@ -173,7 +177,6 @@
             }
             if (!document.querySelector(SELECTORS.COMMENTS)) return;
 
-            window.addEventListener('scroll', this.scrollHandler, { passive: true });
             this.setupMutationObserver();
             this.setupIntersectionObserver();
             await this.processVisibleElements();
@@ -182,7 +185,8 @@
 
         cleanup() {
             if (this.observer) this.observer.disconnect();
-            window.removeEventListener('scroll', this.scrollHandler);
+            if (this.io) this.io.disconnect();
+            clearInterval(this.ioControlInterval);
             this.expandedComments.clear();
         }
     }
