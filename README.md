@@ -15,7 +15,7 @@ YouTube のコメント欄を手動で開くのは面倒？
 
 1. お使いのブラウザに **[Violentmonkey](https://violentmonkey.github.io/)** または **[Tampermonkey](https://www.tampermonkey.net/)** をインストール  
 2. 以下のリンクからスクリプトをインストール：  
-   👉 [このスクリプトをインストールする](https://raw.githubusercontent.com/koyasi777/youtube-auto-expand-comments/main/youtube-auto-expand-comments.user.js)
+   👉 [このスクリプトをインストールする](https://raw.githubusercontent.com/koyasi777/youtube-auto-comment-expander/main/youtube-auto-comment-expander.user.js)
 
 ---
 
