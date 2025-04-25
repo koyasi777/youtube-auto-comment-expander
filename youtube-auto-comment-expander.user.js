@@ -49,6 +49,7 @@
         SHOW_REPLIES: '#more-replies > yt-button-shape > button:not([disabled])',
         HIDDEN_REPLIES: 'ytd-comment-replies-renderer ytd-button-renderer#more-replies button:not([disabled])',
         CONTINUATION_REPLIES: 'ytd-comment-replies-renderer ytd-continuation-item-renderer ytd-button-renderer button:not([disabled])',
+        READ_MORE: 'tp-yt-paper-button#more[aria-expanded="false"]:not([aria-disabled="true"])',
         NOTIFICATION_TOOLTIP: 'ytd-notification-topbar-button-renderer tp-yt-paper-tooltip'
     };
 
@@ -69,7 +70,6 @@
             const notificationBtn = document.querySelector('ytd-notification-topbar-button-renderer button[aria-expanded="true"]');
             return !!notificationBtn;
         }
-
 
         getCommentId(thread) {
             const timestamp = thread.querySelector('#header-author time')?.getAttribute('datetime') || '';
@@ -115,6 +115,7 @@
             await this.clickElements(SELECTORS.SHOW_REPLIES);
             await this.clickElements(SELECTORS.HIDDEN_REPLIES);
             await this.clickElements(SELECTORS.CONTINUATION_REPLIES);
+            await this.clickElements(SELECTORS.READ_MORE);
         }
 
         setupMutationObserver() {
@@ -123,6 +124,39 @@
             this.observer = new MutationObserver(() => this.processVisibleElements());
             this.observer.observe(container, { childList: true, subtree: true });
             return true;
+        }
+
+        setupReadMoreIntersectionObserver() {
+            const observer = new IntersectionObserver(entries => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        const el = entry.target;
+                        if (!el || el.getAttribute('aria-expanded') === 'true') continue;
+                        try {
+                            el.click();
+                            // ★ 一部を表示ボタンを非表示にする処理を追加
+                            setTimeout(() => {
+                                const less = el.parentElement?.parentElement?.querySelector('tp-yt-paper-button#less');
+                                if (less) less.style.display = 'none';
+                            }, 500);
+                        } catch (e) {
+                            this.log('ReadMore IO click error', e);
+                        }
+                    }
+                }
+            });
+
+            const observeAllReadMores = () => {
+                const buttons = document.querySelectorAll(SELECTORS.READ_MORE);
+                buttons.forEach(btn => observer.observe(btn));
+            };
+
+            observeAllReadMores();
+
+            const container = document.querySelector(SELECTORS.COMMENTS);
+            if (container) {
+                new MutationObserver(observeAllReadMores).observe(container, { childList: true, subtree: true });
+            }
         }
 
         setupIntersectionObserver() {
@@ -178,6 +212,7 @@
             if (!document.querySelector(SELECTORS.COMMENTS)) return;
 
             this.setupMutationObserver();
+            this.setupReadMoreIntersectionObserver();
             this.setupIntersectionObserver();
             await this.processVisibleElements();
             this.log('Expander initialized');
