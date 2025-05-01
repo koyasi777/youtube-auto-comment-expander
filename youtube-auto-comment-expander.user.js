@@ -10,7 +10,7 @@
 // @name:de      YouTube-Kommentare automatisch erweitern ✅
 // @name:pt-BR   Expandir automaticamente os comentários do YouTube ✅
 // @name:ru      Авторазворачивание комментариев на YouTube ✅
-// @version      3.0.0
+// @version      3.5.0
 // @description         安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
 // @description:en      Reliably auto-expands YouTube comments, replies, and "Show more replies". Fully updated for current UI.
 // @description:zh-CN   稳定展开YouTube评论和回复，包括“显示更多回复”。兼容新界面。
@@ -39,7 +39,7 @@
         INITIAL_DELAY: 1500,
         CLICK_INTERVAL: 500,
         EXPANDED_CLASS: 'yt-auto-expanded',
-        DEBUG: false
+        DEBUG: true
     };
 
     const SELECTORS = {
@@ -49,8 +49,7 @@
         SHOW_REPLIES: '#more-replies > yt-button-shape > button:not([disabled])',
         HIDDEN_REPLIES: 'ytd-comment-replies-renderer ytd-button-renderer#more-replies button:not([disabled])',
         CONTINUATION_REPLIES: 'ytd-comment-replies-renderer ytd-continuation-item-renderer ytd-button-renderer button:not([disabled])',
-        READ_MORE: 'tp-yt-paper-button#more[aria-expanded="false"]:not([aria-disabled="true"])',
-        NOTIFICATION_TOOLTIP: 'ytd-notification-topbar-button-renderer tp-yt-paper-tooltip'
+        READ_MORE: 'tp-yt-paper-button#more[aria-expanded="false"]:not([aria-disabled="true"])'
     };
 
     class YouTubeCommentExpander {
@@ -60,6 +59,8 @@
             this.ioTargets = [];
             this.ioControlInterval = null;
             this.expandedComments = new Set();
+            this.autoClickPaused = false;
+            this.resumeTimer = null;
         }
 
         log(...args) {
@@ -69,6 +70,10 @@
         isNotificationOpen() {
             const notificationBtn = document.querySelector('ytd-notification-topbar-button-renderer button[aria-expanded="true"]');
             return !!notificationBtn;
+        }
+
+        isAutoClickPaused() {
+            return this.autoClickPaused;
         }
 
         getCommentId(thread) {
@@ -87,6 +92,11 @@
         }
 
         async clickElements(selector) {
+            if (this.isAutoClickPaused()) {
+                this.log('Auto-click paused, skipping:', selector);
+                return;
+            }
+
             const elements = Array.from(document.querySelectorAll(selector));
             for (const el of elements) {
                 const thread = el.closest(SELECTORS.COMMENT_THREAD);
@@ -111,6 +121,11 @@
         }
 
         async processVisibleElements() {
+            if (this.isAutoClickPaused()) {
+                this.log('Auto-click paused, skipping processVisibleElements');
+                return;
+            }
+
             await this.clickElements(SELECTORS.MORE_COMMENTS);
             await this.clickElements(SELECTORS.SHOW_REPLIES);
             await this.clickElements(SELECTORS.HIDDEN_REPLIES);
@@ -118,10 +133,34 @@
             await this.clickElements(SELECTORS.READ_MORE);
         }
 
+        setupGlobalClickPause() {
+            document.addEventListener('click', (e) => {
+                const sortMenu = e.target.closest('tp-yt-paper-menu-button');
+                if (sortMenu) {
+                    this.autoClickPaused = true;
+                    this.log('Auto-click PAUSED due to click on sort menu');
+
+                    clearTimeout(this.resumeTimer);
+                    this.resumeTimer = setTimeout(() => {
+                        this.autoClickPaused = false;
+                        this.log('Auto-click RESUMED after sort menu interaction');
+                    }, 2000);
+                }
+            }, true);
+        }
+
         setupMutationObserver() {
             const container = document.querySelector(SELECTORS.COMMENTS);
             if (!container) return false;
-            this.observer = new MutationObserver(() => this.processVisibleElements());
+
+            this.observer = new MutationObserver(() => {
+                if (this.isAutoClickPaused()) {
+                    this.log('Auto-click paused, skipping mutation-triggered expansion');
+                    return;
+                }
+                this.processVisibleElements();
+            });
+
             this.observer.observe(container, { childList: true, subtree: true });
             return true;
         }
@@ -134,7 +173,6 @@
                         if (!el || el.getAttribute('aria-expanded') === 'true') continue;
                         try {
                             el.click();
-                            // ★ 一部を表示ボタンを非表示にする処理を追加
                             setTimeout(() => {
                                 const less = el.parentElement?.parentElement?.querySelector('tp-yt-paper-button#less');
                                 if (less) less.style.display = 'none';
@@ -161,7 +199,8 @@
 
         setupIntersectionObserver() {
             this.io = new IntersectionObserver(entries => {
-                if (this.isNotificationOpen()) return;
+                if (this.isNotificationOpen() || this.isAutoClickPaused()) return;
+
                 for (const entry of entries) {
                     const inComment = entry.target.closest(SELECTORS.COMMENT_THREAD) || entry.target.closest(SELECTORS.COMMENTS);
                     if (entry.isIntersecting && inComment) {
@@ -192,7 +231,7 @@
             }
 
             this.ioControlInterval = setInterval(() => {
-                if (this.isNotificationOpen()) {
+                if (this.isNotificationOpen() || this.isAutoClickPaused()) {
                     this.io.disconnect();
                 } else {
                     this.ioTargets.forEach(el => {
@@ -206,16 +245,26 @@
 
         async init() {
             if (!location.pathname.startsWith('/watch')) return;
+
             for (let i = 0; i < 10 && !document.querySelector(SELECTORS.COMMENTS); i++) {
                 await new Promise(r => setTimeout(r, CONFIG.INITIAL_DELAY));
             }
+
             if (!document.querySelector(SELECTORS.COMMENTS)) return;
 
+            this.setupGlobalClickPause();
             this.setupMutationObserver();
             this.setupReadMoreIntersectionObserver();
             this.setupIntersectionObserver();
-            await this.processVisibleElements();
-            this.log('Expander initialized');
+
+            setTimeout(() => {
+                if (!this.autoClickPaused) {
+                    this.processVisibleElements();
+                    this.log('Initial processVisibleElements() executed');
+                } else {
+                    this.log('Initial expansion skipped due to paused state');
+                }
+            }, 3000);
         }
 
         cleanup() {
