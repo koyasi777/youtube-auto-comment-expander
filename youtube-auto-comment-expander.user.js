@@ -39,7 +39,7 @@
         INITIAL_DELAY: 1500,
         CLICK_INTERVAL: 500,
         EXPANDED_CLASS: 'yt-auto-expanded',
-        DEBUG: true
+        DEBUG: false
     };
 
     const SELECTORS = {
