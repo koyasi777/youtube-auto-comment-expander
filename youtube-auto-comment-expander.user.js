@@ -10,7 +10,7 @@
 // @name:de      YouTube-Kommentare automatisch erweitern ✅
 // @name:pt-BR   Expandir automaticamente os comentários do YouTube ✅
 // @name:ru      Авторазворачивание комментариев на YouTube ✅
-// @version      3.5.0
+// @version      4.0.0
 // @description         安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
 // @description:en      Reliably auto-expands YouTube comments, replies, and "Show more replies". Fully updated for current UI.
 // @description:zh-CN   稳定展开YouTube评论和回复，包括“显示更多回复”。兼容新界面。
@@ -25,269 +25,189 @@
 // @author       koyasi777
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
-// @grant        none
+// @grant        GM_registerMenuCommand
+// @grant        GM_getValue
+// @grant        GM_setValue
 // @run-at       document-end
 // @license      MIT
 // @homepageURL  https://github.com/koyasi777/youtube-auto-expand-comments
 // @supportURL   https://github.com/koyasi777/youtube-auto-expand-comments/issues
 // ==/UserScript==
 
-(function () {
+(function() {
     'use strict';
 
-    const CONFIG = {
-        INITIAL_DELAY: 1500,
-        CLICK_INTERVAL: 500,
-        EXPANDED_CLASS: 'yt-auto-expanded',
-        DEBUG: false
-    };
-
-    const SELECTORS = {
-        COMMENTS: 'ytd-comments#comments',
-        COMMENT_THREAD: 'ytd-comment-thread-renderer',
-        MORE_COMMENTS: 'ytd-continuation-item-renderer #button:not([disabled])',
-        SHOW_REPLIES: '#more-replies > yt-button-shape > button:not([disabled])',
-        HIDDEN_REPLIES: 'ytd-comment-replies-renderer ytd-button-renderer#more-replies button:not([disabled])',
-        CONTINUATION_REPLIES: 'ytd-comment-replies-renderer ytd-continuation-item-renderer ytd-button-renderer button:not([disabled])',
-        READ_MORE: 'tp-yt-paper-button#more[aria-expanded="false"]:not([aria-disabled="true"])'
-    };
+    class ConfigManager {
+        constructor() {
+            this.defaults = { debugMode: false, initialDelay: 1500, clickInterval: 350, expandComments: true, expandReplies: true, expandNestedReplies: true, expandLongComments: true, };
+            this.config = {}; this.load();
+        }
+        load() { for (const key in this.defaults) this.config[key] = GM_getValue(key, this.defaults[key]); }
+        get(key) { return this.config[key]; }
+        set(key, value) { this.config[key] = value; GM_setValue(key, value); }
+        reset() { for (const key in this.defaults) this.set(key, this.defaults[key]); }
+        registerMenu() {
+            GM_registerMenuCommand('⚙️ コメント自動展開 設定', () => this.showSettingsPrompt());
+            GM_registerMenuCommand('🗑️ 設定をリセット', () => { if (confirm('本当に全ての設定をリセットしますか？')) { this.reset(); alert('設定がリセットされました。ページをリロードして反映させてください。'); } });
+        }
+        showSettingsPrompt() {
+            const newSettings = {};
+            for (const key in this.defaults) {
+                const currentValue = this.get(key), type = typeof this.defaults[key];
+                let newValue = prompt(`${key} (${type}) [デフォルト: ${this.defaults[key]}]\n現在の値: ${currentValue}`, currentValue);
+                if (newValue === null) return;
+                if (type === 'boolean') newSettings[key] = newValue.toLowerCase() === 'true';
+                else if (type === 'number') { newSettings[key] = parseInt(newValue, 10); if (isNaN(newSettings[key])) newSettings[key] = this.defaults[key]; }
+                else newSettings[key] = newValue;
+            }
+            for (const key in newSettings) this.set(key, newSettings[key]);
+            alert('設定が更新されました。ページをリロードして反映させてください。');
+        }
+    }
 
     class YouTubeCommentExpander {
-        constructor() {
-            this.observer = null;
-            this.io = null;
-            this.ioTargets = [];
-            this.ioControlInterval = null;
-            this.expandedComments = new Set();
-            this.autoClickPaused = false;
-            this.resumeTimer = null;
+        constructor(config) {
+            this.config = config;
+            this.processedElements = new WeakSet();
+            this.mainObserver = null;
+            this.readMoreObserver = null;
+            this.actionQueue = [];
+            this.isProcessingQueue = false;
+
+            this.rules = [{
+                name: 'ExpandComments',
+                selector: '#comments > #contents > ytd-continuation-item-renderer > .ytd-item-section-renderer > yt-button-shape',
+                parentSelector: 'ytd-continuation-item-renderer',
+                condition: () => this.config.get('expandComments'),
+                once: false,
+            }, {
+                name: 'ExpandReplies',
+                selector: '#more-replies',
+                parentSelector: 'ytd-comment-thread-renderer',
+                condition: () => this.config.get('expandReplies'),
+                once: true,
+            }, {
+                name: 'ExpandNestedReplies',
+                selector: 'ytd-comment-replies-renderer ytd-continuation-item-renderer button.yt-spec-button-shape-next',
+                parentSelector: 'ytd-continuation-item-renderer',
+                condition: () => this.config.get('expandNestedReplies'),
+                once: false,
+            }];
         }
 
-        log(...args) {
-            if (CONFIG.DEBUG) console.log('[YTCExpander]', ...args);
-        }
-
-        isNotificationOpen() {
-            const notificationBtn = document.querySelector('ytd-notification-topbar-button-renderer button[aria-expanded="true"]');
-            return !!notificationBtn;
-        }
-
-        isAutoClickPaused() {
-            return this.autoClickPaused;
-        }
-
-        getCommentId(thread) {
-            const timestamp = thread.querySelector('#header-author time')?.getAttribute('datetime') || '';
-            const id = thread.getAttribute('data-thread-id') || '';
-            return `${id}-${timestamp}`;
-        }
-
-        isCommentExpanded(thread) {
-            return this.expandedComments.has(this.getCommentId(thread));
-        }
-
-        markAsExpanded(thread) {
-            thread.classList.add(CONFIG.EXPANDED_CLASS);
-            this.expandedComments.add(this.getCommentId(thread));
-        }
-
-        async clickElements(selector) {
-            if (this.isAutoClickPaused()) {
-                this.log('Auto-click paused, skipping:', selector);
-                return;
+        log(level, ...args) { if (!this.config.get('debugMode')) return; console.log(`[YTCE:${level.toUpperCase()}]`, ...args); }
+        enqueueAction(element, rule) { this.actionQueue.push({ element, rule }); if (!this.isProcessingQueue) this.processQueue(); }
+        async processQueue() {
+            if (this.actionQueue.length === 0) { this.isProcessingQueue = false; return; }
+            this.isProcessingQueue = true;
+            const { element, rule } = this.actionQueue.shift();
+            const parentElement = rule.parentSelector ? element.closest(rule.parentSelector) : element;
+            if (document.body.contains(element) && parentElement && !this.processedElements.has(parentElement)) {
+                await this.performAction(element, rule, parentElement);
             }
-
-            const elements = Array.from(document.querySelectorAll(selector));
-            for (const el of elements) {
-                const thread = el.closest(SELECTORS.COMMENT_THREAD);
-                if (thread && this.isCommentExpanded(thread)) continue;
-
-                const inComment = thread || el.closest(SELECTORS.COMMENTS);
-                if (!inComment) continue;
-
-                el.scrollIntoView({ behavior: 'auto', block: 'center' });
-                await new Promise(r => setTimeout(r, 100));
-
-                if (el.disabled || el.getAttribute('aria-expanded') === 'true') continue;
-
-                try {
-                    el.click();
-                    if (thread) this.markAsExpanded(thread);
-                    await new Promise(r => setTimeout(r, CONFIG.CLICK_INTERVAL));
-                } catch (e) {
-                    this.log('Click error:', e);
-                }
+            this.processQueue();
+        }
+        async performAction(element, rule, parentElement) {
+            try {
+                this.log('debug', `Performing action on '${rule.name}'`);
+                await new Promise(resolve => setTimeout(resolve, this.config.get('clickInterval')));
+                element.click();
+                this.processedElements.add(parentElement);
+            } catch (error) {
+                this.log('error', `Action failed for '${rule.name}'`, error);
+                if (parentElement) this.processedElements.add(parentElement);
             }
         }
-
-        async processVisibleElements() {
-            if (this.isAutoClickPaused()) {
-                this.log('Auto-click paused, skipping processVisibleElements');
-                return;
+        applyRulesToNode(node) {
+            if (!(node instanceof Element)) return;
+            for (const rule of this.rules) {
+                if (!rule.condition(node)) continue;
+                if (node.matches(rule.selector)) this.checkAndEnqueue(node, rule);
+                node.querySelectorAll(rule.selector).forEach(el => this.checkAndEnqueue(el, rule));
             }
-
-            await this.clickElements(SELECTORS.MORE_COMMENTS);
-            await this.clickElements(SELECTORS.SHOW_REPLIES);
-            await this.clickElements(SELECTORS.HIDDEN_REPLIES);
-            await this.clickElements(SELECTORS.CONTINUATION_REPLIES);
-            await this.clickElements(SELECTORS.READ_MORE);
+        }
+        checkAndEnqueue(element, rule) {
+            const parentElement = rule.parentSelector ? element.closest(rule.parentSelector) : element;
+            if (!parentElement || this.processedElements.has(parentElement)) return;
+            this.enqueueAction(element, rule);
         }
 
-        setupGlobalClickPause() {
-            document.addEventListener('click', (e) => {
-                const sortMenu = e.target.closest('tp-yt-paper-menu-button');
-                if (sortMenu) {
-                    this.autoClickPaused = true;
-                    this.log('Auto-click PAUSED due to click on sort menu');
+        setupReadMoreObserver() {
+            if (!this.config.get('expandLongComments')) return () => {};
 
-                    clearTimeout(this.resumeTimer);
-                    this.resumeTimer = setTimeout(() => {
-                        this.autoClickPaused = false;
-                        this.log('Auto-click RESUMED after sort menu interaction');
-                    }, 2000);
+            const readMoreSelector = [ '#content-text[collapsed]', '.more-button.ytd-comment-view-model', 'tp-yt-paper-button#more:not([aria-expanded="true"])' ].join(', ');
+
+            this.readMoreObserver = new IntersectionObserver(async (entries, observer) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        const button = entry.target;
+                        observer.unobserve(button);
+
+                        this.log('debug', 'ReadMore button in view, clicking.');
+                        await new Promise(resolve => setTimeout(resolve, this.config.get('clickInterval')));
+                        button.click();
+
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        const commentViewModel = button.closest('ytd-comment-view-model, ytd-comment-renderer');
+                        if (commentViewModel) {
+                            const lessButton = commentViewModel.querySelector('.less-button, tp-yt-paper-button#less');
+                            if (lessButton) { lessButton.style.display = 'none'; }
+                        }
+                    }
                 }
-            }, true);
+            }, { threshold: 0.5 });
+
+            const observeNewButtons = (rootNode) => {
+                if (!(rootNode instanceof Element)) return;
+                rootNode.querySelectorAll(readMoreSelector).forEach(btn => this.readMoreObserver.observe(btn));
+            };
+            return observeNewButtons;
         }
 
-        setupMutationObserver() {
-            const container = document.querySelector(SELECTORS.COMMENTS);
-            if (!container) return false;
+        start() {
+            const commentsContainer = document.querySelector('ytd-comments#comments');
+            if (!commentsContainer) { this.log('info', 'Comment section not found.'); return false; }
 
-            this.observer = new MutationObserver(() => {
-                if (this.isAutoClickPaused()) {
-                    this.log('Auto-click paused, skipping mutation-triggered expansion');
-                    return;
+            const observeNewReadMoreButtons = this.setupReadMoreObserver();
+            observeNewReadMoreButtons(commentsContainer);
+
+            this.mainObserver = new MutationObserver((mutations) => {
+                for (const mutation of mutations) {
+                    for (const node of mutation.addedNodes) {
+                        this.applyRulesToNode(node);
+                        observeNewReadMoreButtons(node);
+                    }
                 }
-                this.processVisibleElements();
             });
+            this.mainObserver.observe(commentsContainer, { childList: true, subtree: true });
 
-            this.observer.observe(container, { childList: true, subtree: true });
+            this.log('info', 'All observers started.');
+            this.applyRulesToNode(commentsContainer);
             return true;
         }
 
-        setupReadMoreIntersectionObserver() {
-            const observer = new IntersectionObserver(entries => {
-                for (const entry of entries) {
-                    if (entry.isIntersecting) {
-                        const el = entry.target;
-                        if (!el || el.getAttribute('aria-expanded') === 'true') continue;
-                        try {
-                            el.click();
-                            setTimeout(() => {
-                                const less = el.parentElement?.parentElement?.querySelector('tp-yt-paper-button#less');
-                                if (less) less.style.display = 'none';
-                            }, 500);
-                        } catch (e) {
-                            this.log('ReadMore IO click error', e);
-                        }
-                    }
-                }
-            });
-
-            const observeAllReadMores = () => {
-                const buttons = document.querySelectorAll(SELECTORS.READ_MORE);
-                buttons.forEach(btn => observer.observe(btn));
-            };
-
-            observeAllReadMores();
-
-            const container = document.querySelector(SELECTORS.COMMENTS);
-            if (container) {
-                new MutationObserver(observeAllReadMores).observe(container, { childList: true, subtree: true });
-            }
-        }
-
-        setupIntersectionObserver() {
-            this.io = new IntersectionObserver(entries => {
-                if (this.isNotificationOpen() || this.isAutoClickPaused()) return;
-
-                for (const entry of entries) {
-                    const inComment = entry.target.closest(SELECTORS.COMMENT_THREAD) || entry.target.closest(SELECTORS.COMMENTS);
-                    if (entry.isIntersecting && inComment) {
-                        try {
-                            entry.target.click();
-                        } catch (e) {
-                            this.log('IO click error', e);
-                        }
-                    }
-                }
-            });
-
-            const register = () => {
-                const buttons = document.querySelectorAll(
-                    `${SELECTORS.MORE_COMMENTS},${SELECTORS.SHOW_REPLIES},${SELECTORS.HIDDEN_REPLIES},${SELECTORS.CONTINUATION_REPLIES}`
-                );
-                this.ioTargets = Array.from(buttons).filter(btn =>
-                    btn.closest(SELECTORS.COMMENT_THREAD) || btn.closest(SELECTORS.COMMENTS)
-                );
-                this.ioTargets.forEach(btn => this.io.observe(btn));
-            };
-
-            register();
-
-            const container = document.querySelector(SELECTORS.COMMENTS);
-            if (container) {
-                new MutationObserver(register).observe(container, { childList: true, subtree: true });
-            }
-
-            this.ioControlInterval = setInterval(() => {
-                if (this.isNotificationOpen() || this.isAutoClickPaused()) {
-                    this.io.disconnect();
-                } else {
-                    this.ioTargets.forEach(el => {
-                        try {
-                            this.io.observe(el);
-                        } catch {}
-                    });
-                }
-            }, 500);
-        }
-
-        async init() {
-            if (!location.pathname.startsWith('/watch')) return;
-
-            for (let i = 0; i < 10 && !document.querySelector(SELECTORS.COMMENTS); i++) {
-                await new Promise(r => setTimeout(r, CONFIG.INITIAL_DELAY));
-            }
-
-            if (!document.querySelector(SELECTORS.COMMENTS)) return;
-
-            this.setupGlobalClickPause();
-            this.setupMutationObserver();
-            this.setupReadMoreIntersectionObserver();
-            this.setupIntersectionObserver();
-
-            setTimeout(() => {
-                if (!this.autoClickPaused) {
-                    this.processVisibleElements();
-                    this.log('Initial processVisibleElements() executed');
-                } else {
-                    this.log('Initial expansion skipped due to paused state');
-                }
-            }, 3000);
-        }
-
-        cleanup() {
-            if (this.observer) this.observer.disconnect();
-            if (this.io) this.io.disconnect();
-            clearInterval(this.ioControlInterval);
-            this.expandedComments.clear();
+        stop() {
+            if (this.mainObserver) { this.mainObserver.disconnect(); this.mainObserver = null; }
+            if (this.readMoreObserver) { this.readMoreObserver.disconnect(); this.readMoreObserver = null; }
+            this.log('info', 'All observers stopped.');
+            this.processedElements = new WeakSet(); this.actionQueue = []; this.isProcessingQueue = false;
         }
     }
 
-    const expander = new YouTubeCommentExpander();
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => setTimeout(() => expander.init(), CONFIG.INITIAL_DELAY));
-    } else {
-        setTimeout(() => expander.init(), CONFIG.INITIAL_DELAY);
+    const configManager = new ConfigManager();
+    let expander = null;
+
+    function initializeScript() {
+        if (expander) { expander.stop(); expander = null; }
+        if (location.pathname !== '/watch') { configManager.get('debugMode') && console.log('[YTCE:INFO] Not a watch page. Script is idle.'); return; }
+        setTimeout(() => {
+            expander = new YouTubeCommentExpander(configManager);
+            if (!expander.start()) setTimeout(() => { if (expander && !expander.mainObserver) expander.start(); }, 3000);
+        }, configManager.get('initialDelay'));
     }
 
-    let lastUrl = location.href;
-    new MutationObserver(() => {
-        if (location.href !== lastUrl) {
-            lastUrl = location.href;
-            expander.cleanup();
-            setTimeout(() => expander.init(), CONFIG.INITIAL_DELAY);
-        }
-    }).observe(document.body, { childList: true, subtree: true });
+    configManager.registerMenu();
+    window.addEventListener('yt-navigate-finish', initializeScript);
+    if (document.readyState === 'complete' || document.readyState === 'interactive') initializeScript();
+    else document.addEventListener('DOMContentLoaded', initializeScript, { once: true });
 })();
