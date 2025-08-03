@@ -10,7 +10,7 @@
 // @name:de      YouTube-Kommentare automatisch erweitern ✅
 // @name:pt-BR   Expandir automaticamente os comentários do YouTube ✅
 // @name:ru      Авторазворачивание комментариев на YouTube ✅
-// @version      5.0.0
+// @version      5.5.0
 // @description         安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
 // @description:en      Reliably auto-expands YouTube comments, replies, and "Show more replies". Fully updated for current UI.
 // @description:zh-CN   稳定展开YouTube评论和回复，包括“显示更多回复”。兼容新界面。
@@ -28,6 +28,7 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_addStyle
 // @run-at       document-end
 // @license      MIT
 // @homepageURL  https://github.com/koyasi777/youtube-auto-expand-comments
@@ -40,6 +41,7 @@
     class ConfigManager {
         constructor() {
             this.defaults = {
+                scriptEnabled: true,
                 debugMode: false,
                 initialDelay: 2500,
                 clickInterval: 130,
@@ -77,149 +79,225 @@
     class YouTubeCommentExpander {
         constructor(config) {
             this.config = config;
-            this.processedElements = new WeakSet();
             this.mainObserver = null;
+            this.actionObserver = null;
             this.readMoreObserver = null;
-            this.actionQueue = [];
-            this.isProcessingQueue = false;
-
             this.rules = [
-                {
-                    name: 'ExpandComments',
-                    selector: 'ytd-comments > #sections > #contents > ytd-continuation-item-renderer',
-                    parentSelector: 'ytd-continuation-item-renderer',
-                    condition: () => this.config.get('expandComments'),
-                },
-                {
-                    name: 'ExpandReplies',
-                    selector: '#more-replies',
-                    parentSelector: 'ytd-comment-thread-renderer',
-                    condition: () => this.config.get('expandReplies'),
-                },
-                {
-                    name: 'ExpandNestedReplies',
-                    selector: 'ytd-comment-replies-renderer ytd-continuation-item-renderer button',
-                    parentSelector: 'ytd-continuation-item-renderer',
-                    condition: () => this.config.get('expandNestedReplies'),
-                },
+                { name: 'ExpandComments', selector: 'ytd-comments > #sections > #contents > ytd-continuation-item-renderer, ytd-engagement-panel-section-list-renderer > #contents > ytd-continuation-item-renderer', condition: () => this.config.get('expandComments') },
+                { name: 'ExpandReplies', selector: '#more-replies', condition: () => this.config.get('expandReplies') },
+                { name: 'ExpandNestedReplies', selector: 'ytd-comment-replies-renderer ytd-continuation-item-renderer button', condition: () => this.config.get('expandNestedReplies') },
             ];
         }
 
         log(level, ...args) { if (!this.config.get('debugMode')) return; console.log(`[YTCE:${level.toUpperCase()}]`, ...args); }
-        enqueueAction(element, rule) {
-            this.actionQueue.push({ element, rule });
-            if (!this.isProcessingQueue) this.processQueue();
-        }
 
-        async processQueue() {
-            if (this.isProcessingQueue || this.actionQueue.length === 0) return;
-            this.isProcessingQueue = true;
-            while (this.actionQueue.length > 0) {
-                const { element, rule } = this.actionQueue.shift();
-                const parentElement = rule.parentSelector ? element.closest(rule.parentSelector) : element;
-                if (document.body.contains(element) && parentElement && !this.processedElements.has(parentElement)) {
-                    await this.performAction(element, rule, parentElement);
-                }
-            }
-            this.isProcessingQueue = false;
-        }
-
-        async performAction(element, rule, parentElement) {
-            try {
-                this.log('debug', `Performing action on '${rule.name}'`, element);
-                await new Promise(resolve => setTimeout(resolve, this.config.get('clickInterval')));
-                const clickable = element.querySelector('button, yt-button-shape') || element;
-                clickable.click();
-                this.processedElements.add(parentElement);
-            } catch (error) {
-                this.log('error', `Action failed for '${rule.name}'`, error);
-                if (parentElement) this.processedElements.add(parentElement);
-            }
-        }
-
-        applyRulesToNode(node) {
-            if (!(node instanceof Element)) return;
-            for (const rule of this.rules) {
-                if (!rule.condition()) continue;
-                if (node.matches(rule.selector)) {
-                    this.checkAndEnqueue(node, rule);
-                }
-                node.querySelectorAll(rule.selector).forEach(el => this.checkAndEnqueue(el, rule));
-            }
-        }
-
-        checkAndEnqueue(element, rule) {
-            const parentElement = rule.parentSelector ? element.closest(rule.parentSelector) : element;
-            if (!parentElement || this.processedElements.has(parentElement)) return;
-            this.enqueueAction(element, rule);
-        }
-
-        setupReadMoreObserver() {
-            if (!this.config.get('expandLongComments')) return () => {};
-            const readMoreSelector = '#content-text[collapsed], .more-button.ytd-comment-view-model, tp-yt-paper-button#more:not([aria-expanded="true"])';
-
-            this.readMoreObserver = new IntersectionObserver(async (entries, observer) => {
+        setupObservers() {
+            this.actionObserver = new IntersectionObserver(async (entries, observer) => {
                 for (const entry of entries) {
-                    if (entry.isIntersecting) {
-                        const button = entry.target;
-                        observer.unobserve(button);
-                        this.log('debug', 'ReadMore button in view, clicking.', button);
+                    if (entry.isIntersecting && this.config.get('scriptEnabled')) {
+                        const target = entry.target;
+                        observer.unobserve(target);
+                        this.log('debug', 'Action target in view, clicking.', target);
                         await new Promise(resolve => setTimeout(resolve, this.config.get('clickInterval')));
-                        button.click();
+                        const clickable = target.querySelector('button, yt-button-shape') || target;
+                        clickable.click();
+                    }
+                }
+            }, { rootMargin: '0px 0px 500px 0px' });
 
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                        const commentViewModel = button.closest('ytd-comment-view-model, ytd-comment-renderer');
-                        if (commentViewModel) {
-                            const lessButton = commentViewModel.querySelector('.less-button, tp-yt-paper-button#less');
-                            if (lessButton) {
-                                this.log('debug', 'Hiding "less" button', lessButton);
-                                lessButton.style.display = 'none';
+            if (this.config.get('expandLongComments')) {
+                this.readMoreObserver = new IntersectionObserver(async (entries, observer) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && this.config.get('scriptEnabled')) {
+                            const button = entry.target;
+                            observer.unobserve(button);
+                            this.log('debug', 'ReadMore button in view, clicking.', button);
+                            await new Promise(resolve => setTimeout(resolve, this.config.get('clickInterval')));
+                            button.click();
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                            const commentViewModel = button.closest('ytd-comment-view-model, ytd-comment-renderer');
+                            if (commentViewModel) {
+                                const lessButton = commentViewModel.querySelector('.less-button, tp-yt-paper-button#less');
+                                if (lessButton) lessButton.style.display = 'none';
                             }
                         }
                     }
-                }
-            }, { threshold: 0.05 });
+                }, { threshold: 0.1 });
+            }
+        }
 
-            return (rootNode) => {
-                if (!(rootNode instanceof Element)) return;
-                rootNode.querySelectorAll(readMoreSelector).forEach(btn => this.readMoreObserver.observe(btn));
-            };
+        observeNewNodes(node) {
+            if (!(node instanceof Element)) return;
+            for (const rule of this.rules) {
+                if (rule.condition()) {
+                    if (node.matches(rule.selector)) this.actionObserver.observe(node);
+                    node.querySelectorAll(rule.selector).forEach(el => this.actionObserver.observe(el));
+                }
+            }
+            if (this.readMoreObserver) {
+                const readMoreSelector = '#content-text[collapsed], .more-button.ytd-comment-view-model, tp-yt-paper-button#more:not([aria-expanded="true"])';
+                if (node.matches(readMoreSelector)) this.readMoreObserver.observe(node);
+                node.querySelectorAll(readMoreSelector).forEach(btn => this.readMoreObserver.observe(btn));
+            }
         }
 
         start(commentsContainer) {
+            if (!this.config.get('scriptEnabled')) {
+                this.log('info', 'Script is disabled by toggle, not starting.');
+                return false;
+            }
             if (!commentsContainer) { this.log('error', 'start() called without a valid container.'); return false; }
+            this.stop();
             this.log('info', 'Comment container found. Starting observers.', commentsContainer);
-
-            const observeNewReadMoreButtons = this.setupReadMoreObserver();
-            observeNewReadMoreButtons(commentsContainer);
-
+            this.setupObservers();
+            this.observeNewNodes(commentsContainer);
             this.mainObserver = new MutationObserver((mutations) => {
                 for (const mutation of mutations) {
-                    for (const node of mutation.addedNodes) {
-                        this.applyRulesToNode(node);
-                        observeNewReadMoreButtons(node);
-                    }
+                    for (const node of mutation.addedNodes) this.observeNewNodes(node);
                 }
             });
             this.mainObserver.observe(commentsContainer, { childList: true, subtree: true });
-
             this.log('info', 'All observers started.');
-            this.applyRulesToNode(commentsContainer);
             return true;
         }
 
         stop() {
             if (this.mainObserver) { this.mainObserver.disconnect(); this.mainObserver = null; }
+            if (this.actionObserver) { this.actionObserver.disconnect(); this.actionObserver = null; }
             if (this.readMoreObserver) { this.readMoreObserver.disconnect(); this.readMoreObserver = null; }
-            this.actionQueue = [];
-            this.isProcessingQueue = false;
-            this.processedElements = new WeakSet();
             this.log('info', 'All observers stopped and state reset.');
+        }
+    }
+
+    class UIManager {
+        constructor(configManager, expander) {
+            this.configManager = configManager;
+            this.expander = expander;
+            this.toggleContainerId = 'ytce-toggle-container';
+            this.toggle = null;
+            this.icons = {
+                on: `<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"></path></svg>`,
+                off: `<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M18 10H6V9h12v1zm3-7H3v1h18V3zM6 15h12v-1H6v1z"></path></svg>`,
+            };
+            this.injectStyles();
+        }
+
+        injectStyles() {
+            GM_addStyle(`
+                #${this.toggleContainerId} {
+                    position: relative; display: flex; align-items: center; margin-left: 8px;
+                    border: 1px solid var(--yt-spec-border-color, #ddd); border-radius: 16px;
+                    padding: 0 6px; height: 32px; cursor: pointer;
+                    background-color: var(--yt-spec-button-chip-background-hover, transparent);
+                    transition: background-color 0.3s;
+                }
+                #${this.toggleContainerId}:hover { background-color: var(--yt-spec-badge-chip-background, #e8e8e8); }
+                .ytce-toggle-icon {
+                    width: 20px; height: 20px; margin-right: 6px;
+                    display: flex; align-items: center; pointer-events: none;
+                }
+                .ytce-toggle-icon.on svg { fill: var(--yt-spec-call-to-action, #065fd4); }
+                .ytce-toggle-icon.off svg { fill: var(--yt-spec-icon-disabled, #909090); }
+                .ytce-toggle-switch { position: relative; display: inline-block; width: 30px; height: 16px; pointer-events: none; }
+                .ytce-toggle-switch input { opacity: 0; width: 0; height: 0; }
+                .ytce-toggle-slider {
+                    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+                    background-color: #ccc; transition: .4s; border-radius: 16px;
+                }
+                .ytce-toggle-slider:before {
+                    position: absolute; content: ""; height: 10px; width: 10px;
+                    left: 3px; bottom: 3px; background-color: white;
+                    transition: .4s; border-radius: 50%;
+                }
+                input:checked + .ytce-toggle-slider { background-color: var(--yt-spec-call-to-action, #065fd4); }
+                input:checked + .ytce-toggle-slider:before { transform: translateX(14px); }
+            `);
+        }
+
+        createToggleElement() {
+            if (document.getElementById(this.toggleContainerId)) return null;
+            const container = document.createElement('div');
+            container.id = this.toggleContainerId;
+            const tooltip = document.createElement('tp-yt-paper-tooltip');
+            tooltip.setAttribute('role', 'tooltip');
+            const tooltipText = document.createElement('div');
+            tooltipText.id = 'tooltip';
+            tooltipText.className = 'style-scope tp-yt-paper-tooltip';
+            tooltip.appendChild(tooltipText);
+            const iconDiv = document.createElement('div');
+            const switchLabel = document.createElement('label');
+            switchLabel.className = 'ytce-toggle-switch';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            const slider = document.createElement('span');
+            slider.className = 'ytce-toggle-slider';
+            switchLabel.append(checkbox, slider);
+            container.append(iconDiv, switchLabel, tooltip);
+            this.toggle = { container, checkbox, iconDiv, tooltipText };
+            container.addEventListener('click', () => {
+                checkbox.checked = !checkbox.checked;
+                this.onToggleChange();
+            });
+            const initialState = this.configManager.get('scriptEnabled');
+            checkbox.checked = initialState;
+            this.updateToggleVisuals(initialState);
+            return container;
+        }
+
+        onToggleChange() {
+            const isEnabled = this.toggle.checkbox.checked;
+            this.configManager.set('scriptEnabled', isEnabled);
+            this.updateToggleVisuals(isEnabled);
+            this.expander.log('info', `Script ${isEnabled ? 'enabled' : 'disabled'} by toggle.`);
+            if (isEnabled) {
+                const commentsContainer = getCurrentCommentsContainer();
+                if (commentsContainer) this.expander.start(commentsContainer);
+            } else {
+                this.expander.stop();
+            }
+        }
+
+        updateToggleVisuals(isEnabled) {
+            if (!this.toggle) return;
+            this.toggle.iconDiv.innerHTML = this.icons[isEnabled ? 'on' : 'off'];
+            this.toggle.iconDiv.className = `ytce-toggle-icon ${isEnabled ? 'on' : 'off'}`;
+            this.toggle.tooltipText.textContent = `コメント自動展開: ${isEnabled ? 'ON' : 'OFF'}`;
+        }
+
+        hideSortByText(selector) {
+            waitForElement(selector, (label) => {
+                if (label) label.style.display = 'none';
+            });
+        }
+
+        initForWatchPage() {
+            const sortMenuSelector = '#comments #sort-menu';
+            waitForElement(sortMenuSelector, (sortMenu) => {
+                if (document.getElementById(this.toggleContainerId)) return;
+                const toggleElement = this.createToggleElement();
+                if (toggleElement) {
+                    sortMenu.parentElement.appendChild(toggleElement);
+                    this.hideSortByText(`${sortMenuSelector} #icon-label`);
+                }
+            });
+        }
+
+        initForShortsPage() {
+            const sortMenuSelector = 'ytd-engagement-panel-title-header-renderer #menu';
+            waitForElement(sortMenuSelector, (sortMenu) => {
+                if (document.getElementById(this.toggleContainerId)) return;
+                const toggleElement = this.createToggleElement();
+                if (toggleElement) {
+                    sortMenu.insertAdjacentElement('afterend', toggleElement);
+                    this.hideSortByText(`${sortMenuSelector} #icon-label`);
+                }
+            });
         }
     }
 
     const configManager = new ConfigManager();
     let expander = null;
+    let uiManager = null;
     let currentPath = '';
 
     function waitForElement(selector, callback, timeout = 15000) {
@@ -239,33 +317,40 @@
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
+    function getCurrentCommentsContainer() {
+        if (location.pathname.startsWith('/watch')) {
+            return document.querySelector('ytd-comments#comments');
+        } else if (location.pathname.startsWith('/shorts/')) {
+            return document.querySelector('ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]');
+        }
+        return null;
+    }
+
     function initializeScript() {
         const path = location.pathname + location.search;
-        if (currentPath === path) return;
+        if (currentPath === path && expander) return;
         currentPath = path;
-
         if (expander) expander.stop();
         expander = new YouTubeCommentExpander(configManager);
-
+        uiManager = new UIManager(configManager, expander);
         setTimeout(() => {
             if (location.pathname.startsWith('/shorts/')) {
                 expander.log('info', 'Shorts page detected. Looking for comments button...');
-                const commentsButtonSelector = 'ytd-reel-player-overlay-renderer [aria-label*="コメント"]';
+                const commentsButtonSelector = '#comments-button button';
                 waitForElement(commentsButtonSelector, (button) => {
-                    expander.log('info', 'Comments button found. Clicking it to open panel.', button);
                     button.click();
                     const commentsContainerSelector = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]';
                     waitForElement(commentsContainerSelector, (container) => {
-                        expander.log('info', 'Comments panel appeared. Starting expander.');
-                        expander.start(container);
+                        uiManager.initForShortsPage();
+                        if (configManager.get('scriptEnabled')) expander.start(container);
                     });
                 });
             } else if (location.pathname.startsWith('/watch')) {
-                expander.log('info', 'Watch page detected. Looking for comments container...');
+                expander.log('info', 'Watch page detected. Initializing UI and expander...');
+                uiManager.initForWatchPage();
                 const commentsContainerSelector = 'ytd-comments#comments';
                 waitForElement(commentsContainerSelector, (container) => {
-                    expander.log('info', 'Comments container found. Starting expander.');
-                    expander.start(container);
+                    if (configManager.get('scriptEnabled')) expander.start(container);
                 });
             } else {
                 expander.log('info', 'Not a watch/shorts page. Script is idle.');
@@ -276,4 +361,5 @@
     configManager.registerMenu();
     window.addEventListener('yt-navigate-finish', initializeScript, true);
     initializeScript();
+
 })();
