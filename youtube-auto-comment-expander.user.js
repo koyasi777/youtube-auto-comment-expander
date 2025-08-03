@@ -1,38 +1,39 @@
 // ==UserScript==
-// @name         YouTube コメントと返信を自動展開 ✅
-// @name:en      YouTube Auto Expand Comments and Replies ✅
-// @name:ja      YouTube コメントと返信を自動展開 ✅
-// @name:zh-CN   自动展开 YouTube 评论与回复 ✅
-// @name:zh-TW   自動展開 YouTube 評論與回覆 ✅
-// @name:ko      YouTube 댓글 및 답글 자동 확장 ✅
-// @name:fr      Déploiement automatique des commentaires YouTube ✅
-// @name:es      Expansión automática de comentarios de YouTube ✅
-// @name:de      YouTube-Kommentare automatisch erweitern ✅
-// @name:pt-BR   Expandir automaticamente os comentários do YouTube ✅
-// @name:ru      Авторазворачивание комментариев на YouTube ✅
-// @version      5.6.0
-// @description         安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
-// @description:en      Reliably auto-expands YouTube comments, replies, and "Show more replies". Fully updated for current UI.
-// @description:zh-CN   稳定展开YouTube评论和回复，包括“显示更多回复”。兼容新界面。
-// @description:zh-TW   穩定展開YouTube評論和回覆，包括「顯示更多回覆」。支援最新介面。
-// @description:ko      YouTube의 댓글과 답글을 안정적으로 자동 확장. 최신 UI에 대응.
-// @description:fr      Déploie automatiquement les commentaires et réponses YouTube. Compatible avec la nouvelle interface.
-// @description:es      Expande automáticamente los comentarios y respuestas en YouTube. Totalmente actualizado para la nueva interfaz.
-// @description:de      Erweiterung von YouTube-Kommentaren und Antworten – automatisch und zuverlässig. Für aktuelle Oberfläche optimiert.
-// @description:pt-BR   Expande automaticamente comentários e respostas no YouTube. Compatível com a nova UI.
-// @description:ru      Автоматически разворачивает комментарии и ответы на YouTube. Полностью адаптирован к новому интерфейсу.
-// @namespace    https://github.com/koyasi777/youtube-auto-expand-comments
-// @author       koyasi777
-// @match        *://www.youtube.com/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
-// @grant        GM_registerMenuCommand
-// @grant        GM_getValue
-// @grant        GM_setValue
-// @grant        GM_addStyle
-// @run-at       document-end
-// @license      MIT
-// @homepageURL  https://github.com/koyasi777/youtube-auto-expand-comments
-// @supportURL   https://github.com/koyasi777/youtube-auto-expand-comments/issues
+// @name         YouTube コメントと返信を自動展開 ✅
+// @name:en      YouTube Auto Expand Comments and Replies ✅
+// @name:ja      YouTube コメントと返信を自動展開 ✅
+// @name:zh-CN   自动展开 YouTube 评论与回复 ✅
+// @name:zh-TW   自動展開 YouTube 評論與回覆 ✅
+// @name:ko      YouTube 댓글 및 답글 자동 확장 ✅
+// @name:fr      Déploiement automatique des commentaires YouTube ✅
+// @name:es      Expansión automática de comentarios de YouTube ✅
+// @name:de      YouTube-Kommentare automatisch erweitern ✅
+// @name:pt-BR   Expandir automaticamente os comentários do YouTube ✅
+// @name:ru      Авторазворачивание комментариев на YouTube ✅
+// @description  安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
+// @description:en Reliably auto-expands YouTube comments, replies, and "Show more replies". Fully updated for current UI.
+// @description:ja 安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
+// @description:zh-CN 稳定展开YouTube评论和回复，包括“显示更多回复”。兼容新界面。
+// @description:zh-TW 穩定展開YouTube評論和回覆，包括「顯示更多回覆」。支援最新介面。
+// @description:ko YouTube의 댓글과 답글을 안정적으로 자동 확장. 최신 UI에 대응.
+// @description:fr Déploie automatiquement les commentaires et réponses YouTube. Compatible avec la nouvelle interface.
+// @description:es Expande automáticamente los comentarios y respuestas en YouTube. Totalmente actualizado para la nueva interfaz.
+// @description:de Erweiterung von YouTube-Kommentaren und Antworten – automatisch und zuverlässig. Für aktuelle Oberfläche optimiert.
+// @description:pt-BR Expande automaticamente comentários e respostas no YouTube. Compatível com a nova UI.
+// @description:ru Автоматически разворачивает комментарии и ответы на YouTube. Полностью адаптирован к новому интерфейсу.
+// @version      5.6.0
+// @namespace    https://github.com/koyasi777/youtube-auto-expand-comments
+// @author       koyasi777
+// @match        *://www.youtube.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
+// @grant        GM_registerMenuCommand
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_addStyle
+// @run-at       document-end
+// @license      MIT
+// @homepageURL  https://github.com/koyasi777/youtube-auto-expand-comments
+// @supportURL   https://github.com/koyasi777/youtube-auto-expand-comments/issues
 // ==/UserScript==
 
 (function() {
