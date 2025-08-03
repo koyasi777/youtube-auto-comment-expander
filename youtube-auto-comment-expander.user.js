@@ -1,38 +1,38 @@
 // ==UserScript==
-// @name         YouTube コメントと返信を自動展開 ✅
-// @name:en      YouTube Auto Expand Comments and Replies ✅
-// @name:ja      YouTube コメントと返信を自動展開 ✅
-// @name:zh-CN   自动展开 YouTube 评论与回复 ✅
-// @name:zh-TW   自動展開 YouTube 評論與回覆 ✅
-// @name:ko      YouTube 댓글 및 답글 자동 확장 ✅
-// @name:fr      Déploiement automatique des commentaires YouTube ✅
-// @name:es      Expansión automática de comentarios de YouTube ✅
-// @name:de      YouTube-Kommentare automatisch erweitern ✅
-// @name:pt-BR   Expandir automaticamente os comentários do YouTube ✅
-// @name:ru      Авторазворачивание комментариев на YouTube ✅
-// @version      5.5.0
-// @description         安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
-// @description:en      Reliably auto-expands YouTube comments, replies, and "Show more replies". Fully updated for current UI.
-// @description:zh-CN   稳定展开YouTube评论和回复，包括“显示更多回复”。兼容新界面。
-// @description:zh-TW   穩定展開YouTube評論和回覆，包括「顯示更多回覆」。支援最新介面。
-// @description:ko      YouTube의 댓글과 답글을 안정적으로 자동 확장. 최신 UI에 대응.
-// @description:fr      Déploie automatiquement les commentaires et réponses YouTube. Compatible avec la nouvelle interface.
-// @description:es      Expande automáticamente los comentarios y respuestas en YouTube. Totalmente actualizado para la nueva interfaz.
-// @description:de      Erweiterung von YouTube-Kommentaren und Antworten – automatisch und zuverlässig. Für aktuelle Oberfläche optimiert.
-// @description:pt-BR   Expande automaticamente comentários e respostas no YouTube. Compatível com a nova UI.
-// @description:ru      Автоматически разворачивает комментарии и ответы на YouTube. Полностью адаптирован к новому интерфейсу.
-// @namespace    https://github.com/koyasi777/youtube-auto-expand-comments
-// @author       koyasi777
-// @match        https://www.youtube.com/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
-// @grant        GM_registerMenuCommand
-// @grant        GM_getValue
-// @grant        GM_setValue
-// @grant        GM_addStyle
-// @run-at       document-end
-// @license      MIT
-// @homepageURL  https://github.com/koyasi777/youtube-auto-expand-comments
-// @supportURL   https://github.com/koyasi777/youtube-auto-expand-comments/issues
+// @name         YouTube コメントと返信を自動展開 ✅
+// @name:en      YouTube Auto Expand Comments and Replies ✅
+// @name:ja      YouTube コメントと返信を自動展開 ✅
+// @name:zh-CN   自动展开 YouTube 评论与回复 ✅
+// @name:zh-TW   自動展開 YouTube 評論與回覆 ✅
+// @name:ko      YouTube 댓글 및 답글 자동 확장 ✅
+// @name:fr      Déploiement automatique des commentaires YouTube ✅
+// @name:es      Expansión automática de comentarios de YouTube ✅
+// @name:de      YouTube-Kommentare automatisch erweitern ✅
+// @name:pt-BR   Expandir automaticamente os comentários do YouTube ✅
+// @name:ru      Авторазворачивание комментариев на YouTube ✅
+// @version      5.6.0
+// @description         安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
+// @description:en      Reliably auto-expands YouTube comments, replies, and "Show more replies". Fully updated for current UI.
+// @description:zh-CN   稳定展开YouTube评论和回复，包括“显示更多回复”。兼容新界面。
+// @description:zh-TW   穩定展開YouTube評論和回覆，包括「顯示更多回覆」。支援最新介面。
+// @description:ko      YouTube의 댓글과 답글을 안정적으로 자동 확장. 최신 UI에 대응.
+// @description:fr      Déploie automatiquement les commentaires et réponses YouTube. Compatible avec la nouvelle interface.
+// @description:es      Expande automáticamente los comentarios y respuestas en YouTube. Totalmente actualizado para la nueva interfaz.
+// @description:de      Erweiterung von YouTube-Kommentaren und Antworten – automatisch und zuverlässig. Für aktuelle Oberfläche optimiert.
+// @description:pt-BR   Expande automaticamente comentários e respostas no YouTube. Compatível com a nova UI.
+// @description:ru      Автоматически разворачивает комментарии и ответы на YouTube. Полностью адаптирован к новому интерфейсу.
+// @namespace    https://github.com/koyasi777/youtube-auto-expand-comments
+// @author       koyasi777
+// @match        *://www.youtube.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
+// @grant        GM_registerMenuCommand
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_addStyle
+// @run-at       document-end
+// @license      MIT
+// @homepageURL  https://github.com/koyasi777/youtube-auto-expand-comments
+// @supportURL   https://github.com/koyasi777/youtube-auto-expand-comments/issues
 // ==/UserScript==
 
 (function() {
@@ -175,6 +175,7 @@
             this.expander = expander;
             this.toggleContainerId = 'ytce-toggle-container';
             this.toggle = null;
+            this.uiObserver = null;
             this.icons = {
                 on: `<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"></path></svg>`,
                 off: `<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M18 10H6V9h12v1zm3-7H3v1h18V3zM6 15h12v-1H6v1z"></path></svg>`,
@@ -264,34 +265,66 @@
             this.toggle.tooltipText.textContent = `コメント自動展開: ${isEnabled ? 'ON' : 'OFF'}`;
         }
 
-        hideSortByText(selector) {
-            waitForElement(selector, (label) => {
-                if (label) label.style.display = 'none';
+        observeCommentsHeader(containerSelector, sortMenuSelector, sortMenuLabelSelector, insertMode) {
+            waitForElement(containerSelector, (container) => {
+                this.stop();
+
+                const updateUI = () => this.updateCommentsHeaderUI(sortMenuSelector, sortMenuLabelSelector, insertMode);
+
+                this.uiObserver = new MutationObserver(updateUI);
+                this.uiObserver.observe(container, { childList: true, subtree: true });
+                updateUI();
+                this.expander.log('info', `UI Observer started for "${containerSelector}".`);
             });
+        }
+
+        updateCommentsHeaderUI(sortMenuSelector, sortMenuLabelSelector, insertMode) {
+            const sortMenu = document.querySelector(sortMenuSelector);
+            if (!sortMenu) return;
+
+            if (!document.getElementById(this.toggleContainerId)) {
+                const toggleElement = this.createToggleElement();
+                if (toggleElement) {
+                    if (insertMode === 'append') {
+                        sortMenu.parentElement.appendChild(toggleElement);
+                    } else if (insertMode === 'after') {
+                        sortMenu.insertAdjacentElement('afterend', toggleElement);
+                    }
+                    this.expander.log('debug', 'Toggle UI injected.');
+                }
+            }
+
+            const label = document.querySelector(sortMenuLabelSelector);
+            if (label && label.style.display !== 'none') {
+                label.style.display = 'none';
+                this.expander.log('debug', 'Sort menu label hidden.');
+            }
         }
 
         initForWatchPage() {
-            const sortMenuSelector = '#comments #sort-menu';
-            waitForElement(sortMenuSelector, (sortMenu) => {
-                if (document.getElementById(this.toggleContainerId)) return;
-                const toggleElement = this.createToggleElement();
-                if (toggleElement) {
-                    sortMenu.parentElement.appendChild(toggleElement);
-                    this.hideSortByText(`${sortMenuSelector} #icon-label`);
-                }
-            });
+            this.observeCommentsHeader(
+                'ytd-comments#comments',
+                '#comments #sort-menu',
+                '#comments #sort-menu #icon-label',
+                'append'
+            );
         }
 
         initForShortsPage() {
-            const sortMenuSelector = 'ytd-engagement-panel-title-header-renderer #menu';
-            waitForElement(sortMenuSelector, (sortMenu) => {
-                if (document.getElementById(this.toggleContainerId)) return;
-                const toggleElement = this.createToggleElement();
-                if (toggleElement) {
-                    sortMenu.insertAdjacentElement('afterend', toggleElement);
-                    this.hideSortByText(`${sortMenuSelector} #icon-label`);
-                }
-            });
+            this.observeCommentsHeader(
+                'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]',
+                'ytd-engagement-panel-title-header-renderer #menu',
+                'ytd-engagement-panel-title-header-renderer #menu #icon-label',
+                'after'
+            );
+        }
+
+        stop() {
+            if (this.uiObserver) {
+                this.uiObserver.disconnect();
+                this.uiObserver = null;
+                this.expander.log('info', 'UI Observer stopped.');
+            }
         }
     }
 
@@ -330,12 +363,16 @@
         const path = location.pathname + location.search;
         if (currentPath === path && expander) return;
         currentPath = path;
+
         if (expander) expander.stop();
+        if (uiManager) uiManager.stop();
+
         expander = new YouTubeCommentExpander(configManager);
         uiManager = new UIManager(configManager, expander);
+
         setTimeout(() => {
             if (location.pathname.startsWith('/shorts/')) {
-                expander.log('info', 'Shorts page detected. Looking for comments button...');
+                expander.log('info', 'Shorts page detected. Initializing...');
                 const commentsButtonSelector = '#comments-button button';
                 waitForElement(commentsButtonSelector, (button) => {
                     button.click();
@@ -346,7 +383,7 @@
                     });
                 });
             } else if (location.pathname.startsWith('/watch')) {
-                expander.log('info', 'Watch page detected. Initializing UI and expander...');
+                expander.log('info', 'Watch page detected. Initializing...');
                 uiManager.initForWatchPage();
                 const commentsContainerSelector = 'ytd-comments#comments';
                 waitForElement(commentsContainerSelector, (container) => {
