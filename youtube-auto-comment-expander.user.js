@@ -22,7 +22,7 @@
 // @description:pt-BR Expande automaticamente comentários e respostas no YouTube. Compatível com a nova UI.
 // @description:ru Автоматически разворачивает комментарии и ответы на YouTube. Полностью адаптирован к новому интерфейсу.
 // @version      5.6.0
-// @namespace    https://github.com/koyasi777/youtube-auto-expand-comments
+// @namespace    https://github.com/koyasi777/youtube-auto-comment-expander
 // @author       koyasi777
 // @match        *://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
@@ -32,8 +32,8 @@
 // @grant        GM_addStyle
 // @run-at       document-end
 // @license      MIT
-// @homepageURL  https://github.com/koyasi777/youtube-auto-expand-comments
-// @supportURL   https://github.com/koyasi777/youtube-auto-expand-comments/issues
+// @homepageURL  https://github.com/koyasi777/youtube-auto-comment-expander
+// @supportURL   https://github.com/koyasi777/youtube-auto-comment-expander/issues
 // ==/UserScript==
 
 (function() {
