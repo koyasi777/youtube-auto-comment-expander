@@ -21,7 +21,7 @@
 // @description:de Erweiterung von YouTube-Kommentaren und Antworten – automatisch und zuverlässig. Für aktuelle Oberfläche optimiert.
 // @description:pt-BR Expande automaticamente comentários e respostas no YouTube. Compatível com a nova UI.
 // @description:ru Автоматически разворачивает комментарии и ответы на YouTube. Полностью адаптирован к новому интерфейсу.
-// @version      5.6.0
+// @version      5.6.5
 // @namespace    https://github.com/koyasi777/youtube-auto-comment-expander
 // @author       koyasi777
 // @match        *://www.youtube.com/*
@@ -187,33 +187,51 @@
         injectStyles() {
             GM_addStyle(`
                 #${this.toggleContainerId} {
-                    position: relative; display: flex; align-items: center; margin-left: 8px;
-                    border: 1px solid var(--yt-spec-border-color, #ddd); border-radius: 16px;
-                    padding: 0 6px; height: 32px; cursor: pointer;
+                    position: relative; display: flex; align-items: center; margin-left: 18px;
+                    border: 1px solid var(--yt-spec-border-color, #ddd); border-radius: 14px;
+                    padding: 0 4px; height: 26px; cursor: pointer;
                     background-color: var(--yt-spec-button-chip-background-hover, transparent);
                     transition: background-color 0.3s;
                 }
-                #${this.toggleContainerId}:hover { background-color: var(--yt-spec-badge-chip-background, #e8e8e8); }
+                #${this.toggleContainerId}:hover {
+                    background-color: var(--yt-spec-badge-chip-background, #e8e8e8);
+                }
                 .ytce-toggle-icon {
-                    width: 20px; height: 20px; margin-right: 6px;
+                    width: 16px; height: 16px; margin-right: 4px;
                     display: flex; align-items: center; pointer-events: none;
                 }
-                .ytce-toggle-icon.on svg { fill: var(--yt-spec-call-to-action, #065fd4); }
-                .ytce-toggle-icon.off svg { fill: var(--yt-spec-icon-disabled, #909090); }
-                .ytce-toggle-switch { position: relative; display: inline-block; width: 30px; height: 16px; pointer-events: none; }
-                .ytce-toggle-switch input { opacity: 0; width: 0; height: 0; }
+                .ytce-toggle-icon.on svg,
+                .ytce-toggle-icon.off svg {
+                    width: 16px; height: 16px;
+                }
+                .ytce-toggle-switch {
+                    position: relative; display: inline-block; width: 24px; height: 12px; pointer-events: none;
+                }
                 .ytce-toggle-slider {
                     position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-                    background-color: #ccc; transition: .4s; border-radius: 16px;
+                    background-color: #ccc; transition: .4s; border-radius: 12px;
                 }
                 .ytce-toggle-slider:before {
-                    position: absolute; content: ""; height: 10px; width: 10px;
-                    left: 3px; bottom: 3px; background-color: white;
+                    position: absolute; content: ""; height: 8px; width: 8px;
+                    left: 2px; bottom: 2px; background-color: white;
                     transition: .4s; border-radius: 50%;
                 }
-                input:checked + .ytce-toggle-slider { background-color: var(--yt-spec-call-to-action, #065fd4); }
-                input:checked + .ytce-toggle-slider:before { transform: translateX(14px); }
+                input:checked + .ytce-toggle-slider {
+                    background-color: var(--yt-spec-call-to-action, #065fd4);
+                }
+                input:checked + .ytce-toggle-slider:before {
+                    transform: translateX(10px);
+                }
+                #${this.toggleContainerId} .ytce-toggle-switch input {
+                    opacity: 0 !important;
+                    width: 0 !important;
+                    height: 0 !important;
+                    position: absolute !important;
+                    z-index: -1 !important;
+                    pointer-events: none !important;
+                }
             `);
+
         }
 
         createToggleElement() {
