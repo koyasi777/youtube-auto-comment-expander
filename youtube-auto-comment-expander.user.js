@@ -21,7 +21,7 @@
 // @description:de Erweiterung von YouTube-Kommentaren und Antworten – automatisch und zuverlässig. Für aktuelle Oberfläche optimiert.
 // @description:pt-BR Expande automaticamente comentários e respostas no YouTube. Compatível com a nova UI.
 // @description:ru Автоматически разворачивает комментарии и ответы на YouTube. Полностью адаптирован к новому интерфейсу.
-// @version      5.6.0
+// @version      5.7.0
 // @namespace    https://github.com/koyasi777/youtube-auto-comment-expander
 // @author       koyasi777
 // @match        *://www.youtube.com/*
@@ -178,8 +178,12 @@
             this.toggle = null;
             this.uiObserver = null;
             this.icons = {
-                on: `<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"></path></svg>`,
-                off: `<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M18 10H6V9h12v1zm3-7H3v1h18V3zM6 15h12v-1H6v1z"></path></svg>`,
+                on: `<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false"><path d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"></path></svg>`,
+                off: `<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"></path></svg>`,
+            };
+            this.tooltips = {
+                on: { ja: 'コメント自動展開: ON', en: 'Auto-expand comments: ON' },
+                off: { ja: 'コメント自動展開: OFF', en: 'Auto-expand comments: OFF' }
             };
             this.injectStyles();
         }
@@ -187,32 +191,58 @@
         injectStyles() {
             GM_addStyle(`
                 #${this.toggleContainerId} {
-                    position: relative; display: flex; align-items: center; margin-left: 8px;
-                    border: 1px solid var(--yt-spec-border-color, #ddd); border-radius: 16px;
-                    padding: 0 6px; height: 32px; cursor: pointer;
-                    background-color: var(--yt-spec-button-chip-background-hover, transparent);
-                    transition: background-color 0.3s;
+                    position: relative; display: flex; align-items: center; margin-left: 16px;
+                    border: 1px solid var(--yt-spec-mono-10, #ccc); border-radius: 16px;
+                    padding: 2px 8px; height: 30px; cursor: pointer;
+                    background-color: var(--yt-spec-badge-chip-background, #f2f2f2);
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                    transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+                    -webkit-tap-highlight-color: transparent;
                 }
-                #${this.toggleContainerId}:hover { background-color: var(--yt-spec-badge-chip-background, #e8e8e8); }
+                #${this.toggleContainerId}:hover {
+                    background-color: var(--yt-spec-mono-15, #e0e0e0);
+                }
+                #${this.toggleContainerId}.ytce-active {
+                    background-color: var(--yt-spec-brand-button-background, #1c62b9);
+                    border-color: var(--yt-spec-brand-button-background, #1c62b9);
+                }
                 .ytce-toggle-icon {
                     width: 20px; height: 20px; margin-right: 6px;
                     display: flex; align-items: center; pointer-events: none;
                 }
-                .ytce-toggle-icon.on svg { fill: var(--yt-spec-call-to-action, #065fd4); }
-                .ytce-toggle-icon.off svg { fill: var(--yt-spec-icon-disabled, #909090); }
-                .ytce-toggle-switch { position: relative; display: inline-block; width: 30px; height: 16px; pointer-events: none; }
-                .ytce-toggle-switch input { opacity: 0; width: 0; height: 0; }
+                .ytce-toggle-icon svg {
+                    width: 20px; height: 20px;
+                    fill: var(--yt-spec-icon-inactive, #606060);
+                    transition: fill 0.2s ease-in-out;
+                }
+                #${this.toggleContainerId}.ytce-active .ytce-toggle-icon svg {
+                    fill: #fff;
+                }
+                .ytce-toggle-switch {
+                    position: relative; display: inline-block; width: 28px; height: 14px; pointer-events: none;
+                }
                 .ytce-toggle-slider {
                     position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-                    background-color: #ccc; transition: .4s; border-radius: 16px;
+                    background-color: #aaa; transition: .3s; border-radius: 14px;
                 }
                 .ytce-toggle-slider:before {
                     position: absolute; content: ""; height: 10px; width: 10px;
-                    left: 3px; bottom: 3px; background-color: white;
-                    transition: .4s; border-radius: 50%;
+                    left: 2px; bottom: 2px; background-color: white;
+                    transition: .3s; border-radius: 50%;
                 }
-                input:checked + .ytce-toggle-slider { background-color: var(--yt-spec-call-to-action, #065fd4); }
-                input:checked + .ytce-toggle-slider:before { transform: translateX(14px); }
+                input:checked + .ytce-toggle-slider {
+                    background-color: var(--yt-spec-call-to-action, #065fd4);
+                }
+                #${this.toggleContainerId}.ytce-active input:checked + .ytce-toggle-slider {
+                    background-color: rgba(255,255,255,0.4);
+                }
+                input:checked + .ytce-toggle-slider:before {
+                    transform: translateX(14px);
+                }
+                #${this.toggleContainerId} .ytce-toggle-switch input {
+                    opacity: 0 !important; width: 0 !important; height: 0 !important;
+                    position: absolute !important; z-index: -1 !important; pointer-events: none !important;
+                }
             `);
         }
 
@@ -236,7 +266,8 @@
             switchLabel.append(checkbox, slider);
             container.append(iconDiv, switchLabel, tooltip);
             this.toggle = { container, checkbox, iconDiv, tooltipText };
-            container.addEventListener('click', () => {
+            container.addEventListener('click', (e) => {
+                e.stopPropagation();
                 checkbox.checked = !checkbox.checked;
                 this.onToggleChange();
             });
@@ -263,15 +294,15 @@
             if (!this.toggle) return;
             this.toggle.iconDiv.innerHTML = this.icons[isEnabled ? 'on' : 'off'];
             this.toggle.iconDiv.className = `ytce-toggle-icon ${isEnabled ? 'on' : 'off'}`;
-            this.toggle.tooltipText.textContent = `コメント自動展開: ${isEnabled ? 'ON' : 'OFF'}`;
+            this.toggle.container.classList.toggle('ytce-active', isEnabled);
+            const lang = document.documentElement.lang.startsWith('ja') ? 'ja' : 'en';
+            this.toggle.tooltipText.textContent = this.tooltips[isEnabled ? 'on' : 'off'][lang];
         }
 
         observeCommentsHeader(containerSelector, sortMenuSelector, sortMenuLabelSelector, insertMode) {
             waitForElement(containerSelector, (container) => {
                 this.stop();
-
                 const updateUI = () => this.updateCommentsHeaderUI(sortMenuSelector, sortMenuLabelSelector, insertMode);
-
                 this.uiObserver = new MutationObserver(updateUI);
                 this.uiObserver.observe(container, { childList: true, subtree: true });
                 updateUI();
@@ -374,7 +405,7 @@
         setTimeout(() => {
             if (location.pathname.startsWith('/shorts/')) {
                 expander.log('info', 'Shorts page detected. Initializing...');
-                const commentsButtonSelector = '#comments-button button';
+                const commentsButtonSelector = '#comments-button button, #comments-button a';
                 waitForElement(commentsButtonSelector, (button) => {
                     button.click();
                     const commentsContainerSelector = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]';
