@@ -21,7 +21,7 @@
 // @description:de Erweiterung von YouTube-Kommentaren und Antworten – automatisch und zuverlässig. Für aktuelle Oberfläche optimiert.
 // @description:pt-BR Expande automaticamente comentários e respostas no YouTube. Compatível com a nova UI.
 // @description:ru Автоматически разворачивает комментарии и ответы на YouTube. Полностью адаптирован к новому интерфейсу.
-// @version      5.7.0
+// @version      5.7.1
 // @namespace    https://github.com/koyasi777/youtube-auto-comment-expander
 // @author       koyasi777
 // @match        *://www.youtube.com/*
@@ -207,11 +207,11 @@
                     border-color: var(--yt-spec-brand-button-background, #1c62b9);
                 }
                 .ytce-toggle-icon {
-                    width: 20px; height: 20px; margin-right: 6px;
+                    width: 15px; height: 15px; margin-right: 6px;
                     display: flex; align-items: center; pointer-events: none;
                 }
                 .ytce-toggle-icon svg {
-                    width: 20px; height: 20px;
+                    width: 15px; height: 15px;
                     fill: var(--yt-spec-icon-inactive, #606060);
                     transition: fill 0.2s ease-in-out;
                 }
