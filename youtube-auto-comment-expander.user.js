@@ -10,7 +10,7 @@
 // @name:de      YouTube-Kommentare automatisch erweitern ✅
 // @name:pt-BR   Expandir automaticamente os comentários do YouTube ✅
 // @name:ru      Авторазворачивание комментариев на YouTube ✅
-// @version      4.0.0
+// @version      5.0.0
 // @description         安定動作でYouTubeのコメントと返信、「他の返信を表示」も自動展開！現行UIに完全対応。
 // @description:en      Reliably auto-expands YouTube comments, replies, and "Show more replies". Fully updated for current UI.
 // @description:zh-CN   稳定展开YouTube评论和回复，包括“显示更多回复”。兼容新界面。
@@ -39,8 +39,17 @@
 
     class ConfigManager {
         constructor() {
-            this.defaults = { debugMode: false, initialDelay: 1500, clickInterval: 350, expandComments: true, expandReplies: true, expandNestedReplies: true, expandLongComments: true, };
-            this.config = {}; this.load();
+            this.defaults = {
+                debugMode: false,
+                initialDelay: 2500,
+                clickInterval: 130,
+                expandComments: true,
+                expandReplies: true,
+                expandNestedReplies: true,
+                expandLongComments: true,
+            };
+            this.config = {};
+            this.load();
         }
         load() { for (const key in this.defaults) this.config[key] = GM_getValue(key, this.defaults[key]); }
         get(key) { return this.config[key]; }
@@ -74,58 +83,71 @@
             this.actionQueue = [];
             this.isProcessingQueue = false;
 
-            this.rules = [{
-                name: 'ExpandComments',
-                selector: '#comments > #contents > ytd-continuation-item-renderer > .ytd-item-section-renderer > yt-button-shape',
-                parentSelector: 'ytd-continuation-item-renderer',
-                condition: () => this.config.get('expandComments'),
-                once: false,
-            }, {
-                name: 'ExpandReplies',
-                selector: '#more-replies',
-                parentSelector: 'ytd-comment-thread-renderer',
-                condition: () => this.config.get('expandReplies'),
-                once: true,
-            }, {
-                name: 'ExpandNestedReplies',
-                selector: 'ytd-comment-replies-renderer ytd-continuation-item-renderer button.yt-spec-button-shape-next',
-                parentSelector: 'ytd-continuation-item-renderer',
-                condition: () => this.config.get('expandNestedReplies'),
-                once: false,
-            }];
+            this.rules = [
+                {
+                    name: 'ExpandComments',
+                    selector: 'ytd-comments > #sections > #contents > ytd-continuation-item-renderer',
+                    parentSelector: 'ytd-continuation-item-renderer',
+                    condition: () => this.config.get('expandComments'),
+                },
+                {
+                    name: 'ExpandReplies',
+                    selector: '#more-replies',
+                    parentSelector: 'ytd-comment-thread-renderer',
+                    condition: () => this.config.get('expandReplies'),
+                },
+                {
+                    name: 'ExpandNestedReplies',
+                    selector: 'ytd-comment-replies-renderer ytd-continuation-item-renderer button',
+                    parentSelector: 'ytd-continuation-item-renderer',
+                    condition: () => this.config.get('expandNestedReplies'),
+                },
+            ];
         }
 
         log(level, ...args) { if (!this.config.get('debugMode')) return; console.log(`[YTCE:${level.toUpperCase()}]`, ...args); }
-        enqueueAction(element, rule) { this.actionQueue.push({ element, rule }); if (!this.isProcessingQueue) this.processQueue(); }
-        async processQueue() {
-            if (this.actionQueue.length === 0) { this.isProcessingQueue = false; return; }
-            this.isProcessingQueue = true;
-            const { element, rule } = this.actionQueue.shift();
-            const parentElement = rule.parentSelector ? element.closest(rule.parentSelector) : element;
-            if (document.body.contains(element) && parentElement && !this.processedElements.has(parentElement)) {
-                await this.performAction(element, rule, parentElement);
-            }
-            this.processQueue();
+        enqueueAction(element, rule) {
+            this.actionQueue.push({ element, rule });
+            if (!this.isProcessingQueue) this.processQueue();
         }
+
+        async processQueue() {
+            if (this.isProcessingQueue || this.actionQueue.length === 0) return;
+            this.isProcessingQueue = true;
+            while (this.actionQueue.length > 0) {
+                const { element, rule } = this.actionQueue.shift();
+                const parentElement = rule.parentSelector ? element.closest(rule.parentSelector) : element;
+                if (document.body.contains(element) && parentElement && !this.processedElements.has(parentElement)) {
+                    await this.performAction(element, rule, parentElement);
+                }
+            }
+            this.isProcessingQueue = false;
+        }
+
         async performAction(element, rule, parentElement) {
             try {
-                this.log('debug', `Performing action on '${rule.name}'`);
+                this.log('debug', `Performing action on '${rule.name}'`, element);
                 await new Promise(resolve => setTimeout(resolve, this.config.get('clickInterval')));
-                element.click();
+                const clickable = element.querySelector('button, yt-button-shape') || element;
+                clickable.click();
                 this.processedElements.add(parentElement);
             } catch (error) {
                 this.log('error', `Action failed for '${rule.name}'`, error);
                 if (parentElement) this.processedElements.add(parentElement);
             }
         }
+
         applyRulesToNode(node) {
             if (!(node instanceof Element)) return;
             for (const rule of this.rules) {
-                if (!rule.condition(node)) continue;
-                if (node.matches(rule.selector)) this.checkAndEnqueue(node, rule);
+                if (!rule.condition()) continue;
+                if (node.matches(rule.selector)) {
+                    this.checkAndEnqueue(node, rule);
+                }
                 node.querySelectorAll(rule.selector).forEach(el => this.checkAndEnqueue(el, rule));
             }
         }
+
         checkAndEnqueue(element, rule) {
             const parentElement = rule.parentSelector ? element.closest(rule.parentSelector) : element;
             if (!parentElement || this.processedElements.has(parentElement)) return;
@@ -134,39 +156,39 @@
 
         setupReadMoreObserver() {
             if (!this.config.get('expandLongComments')) return () => {};
-
-            const readMoreSelector = [ '#content-text[collapsed]', '.more-button.ytd-comment-view-model', 'tp-yt-paper-button#more:not([aria-expanded="true"])' ].join(', ');
+            const readMoreSelector = '#content-text[collapsed], .more-button.ytd-comment-view-model, tp-yt-paper-button#more:not([aria-expanded="true"])';
 
             this.readMoreObserver = new IntersectionObserver(async (entries, observer) => {
                 for (const entry of entries) {
                     if (entry.isIntersecting) {
                         const button = entry.target;
                         observer.unobserve(button);
-
-                        this.log('debug', 'ReadMore button in view, clicking.');
+                        this.log('debug', 'ReadMore button in view, clicking.', button);
                         await new Promise(resolve => setTimeout(resolve, this.config.get('clickInterval')));
                         button.click();
 
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        await new Promise(resolve => setTimeout(resolve, 200));
                         const commentViewModel = button.closest('ytd-comment-view-model, ytd-comment-renderer');
                         if (commentViewModel) {
                             const lessButton = commentViewModel.querySelector('.less-button, tp-yt-paper-button#less');
-                            if (lessButton) { lessButton.style.display = 'none'; }
+                            if (lessButton) {
+                                this.log('debug', 'Hiding "less" button', lessButton);
+                                lessButton.style.display = 'none';
+                            }
                         }
                     }
                 }
-            }, { threshold: 0.5 });
+            }, { threshold: 0.05 });
 
-            const observeNewButtons = (rootNode) => {
+            return (rootNode) => {
                 if (!(rootNode instanceof Element)) return;
                 rootNode.querySelectorAll(readMoreSelector).forEach(btn => this.readMoreObserver.observe(btn));
             };
-            return observeNewButtons;
         }
 
-        start() {
-            const commentsContainer = document.querySelector('ytd-comments#comments');
-            if (!commentsContainer) { this.log('info', 'Comment section not found.'); return false; }
+        start(commentsContainer) {
+            if (!commentsContainer) { this.log('error', 'start() called without a valid container.'); return false; }
+            this.log('info', 'Comment container found. Starting observers.', commentsContainer);
 
             const observeNewReadMoreButtons = this.setupReadMoreObserver();
             observeNewReadMoreButtons(commentsContainer);
@@ -189,25 +211,69 @@
         stop() {
             if (this.mainObserver) { this.mainObserver.disconnect(); this.mainObserver = null; }
             if (this.readMoreObserver) { this.readMoreObserver.disconnect(); this.readMoreObserver = null; }
-            this.log('info', 'All observers stopped.');
-            this.processedElements = new WeakSet(); this.actionQueue = []; this.isProcessingQueue = false;
+            this.actionQueue = [];
+            this.isProcessingQueue = false;
+            this.processedElements = new WeakSet();
+            this.log('info', 'All observers stopped and state reset.');
         }
     }
 
     const configManager = new ConfigManager();
     let expander = null;
+    let currentPath = '';
+
+    function waitForElement(selector, callback, timeout = 15000) {
+        let timeoutId = null;
+        const observer = new MutationObserver((mutations, obs) => {
+            const element = document.querySelector(selector);
+            if (element) {
+                if (timeoutId) clearTimeout(timeoutId);
+                obs.disconnect();
+                callback(element);
+            }
+        });
+        timeoutId = setTimeout(() => {
+            observer.disconnect();
+            expander?.log('warn', `waitForElement timed out for selector: ${selector}`);
+        }, timeout);
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
 
     function initializeScript() {
-        if (expander) { expander.stop(); expander = null; }
-        if (location.pathname !== '/watch') { configManager.get('debugMode') && console.log('[YTCE:INFO] Not a watch page. Script is idle.'); return; }
+        const path = location.pathname + location.search;
+        if (currentPath === path) return;
+        currentPath = path;
+
+        if (expander) expander.stop();
+        expander = new YouTubeCommentExpander(configManager);
+
         setTimeout(() => {
-            expander = new YouTubeCommentExpander(configManager);
-            if (!expander.start()) setTimeout(() => { if (expander && !expander.mainObserver) expander.start(); }, 3000);
+            if (location.pathname.startsWith('/shorts/')) {
+                expander.log('info', 'Shorts page detected. Looking for comments button...');
+                const commentsButtonSelector = 'ytd-reel-player-overlay-renderer [aria-label*="コメント"]';
+                waitForElement(commentsButtonSelector, (button) => {
+                    expander.log('info', 'Comments button found. Clicking it to open panel.', button);
+                    button.click();
+                    const commentsContainerSelector = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]';
+                    waitForElement(commentsContainerSelector, (container) => {
+                        expander.log('info', 'Comments panel appeared. Starting expander.');
+                        expander.start(container);
+                    });
+                });
+            } else if (location.pathname.startsWith('/watch')) {
+                expander.log('info', 'Watch page detected. Looking for comments container...');
+                const commentsContainerSelector = 'ytd-comments#comments';
+                waitForElement(commentsContainerSelector, (container) => {
+                    expander.log('info', 'Comments container found. Starting expander.');
+                    expander.start(container);
+                });
+            } else {
+                expander.log('info', 'Not a watch/shorts page. Script is idle.');
+            }
         }, configManager.get('initialDelay'));
     }
 
     configManager.registerMenu();
-    window.addEventListener('yt-navigate-finish', initializeScript);
-    if (document.readyState === 'complete' || document.readyState === 'interactive') initializeScript();
-    else document.addEventListener('DOMContentLoaded', initializeScript, { once: true });
+    window.addEventListener('yt-navigate-finish', initializeScript, true);
+    initializeScript();
 })();
