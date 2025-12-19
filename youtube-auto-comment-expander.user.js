@@ -21,7 +21,7 @@
 // @description:de Erweiterung von YouTube-Kommentaren und Antworten – automatisch und zuverlässig. Für aktuelle Oberfläche optimiert.
 // @description:pt-BR Expande automaticamente comentários e respostas no YouTube. Compatível com a nova UI.
 // @description:ru Автоматически разворачивает комментарии и ответы на YouTube. Полностью адаптирован к новому интерфейсу.
-// @version      5.7.1
+// @version      5.8.0
 // @namespace    https://github.com/koyasi777/youtube-auto-comment-expander
 // @author       koyasi777
 // @match        *://www.youtube.com/*
@@ -84,9 +84,12 @@
             this.actionObserver = null;
             this.readMoreObserver = null;
             this.rules = [
-                { name: 'ExpandComments', selector: 'ytd-comments > #sections > #contents > ytd-continuation-item-renderer, ytd-engagement-panel-section-list-renderer > #contents > ytd-continuation-item-renderer', condition: () => this.config.get('expandComments') },
-                { name: 'ExpandReplies', selector: '#more-replies', condition: () => this.config.get('expandReplies') },
-                { name: 'ExpandNestedReplies', selector: 'ytd-comment-replies-renderer ytd-continuation-item-renderer button', condition: () => this.config.get('expandNestedReplies') },
+                // メインのコメント読み込み（無限スクロール用）
+                { name: 'ExpandComments', selector: 'ytd-continuation-item-renderer', condition: () => this.config.get('expandComments') },
+                // 返信の展開（通常およびネストされたスレッド）
+                { name: 'ExpandReplies', selector: '#more-replies, #more-replies-sub-thread', condition: () => this.config.get('expandReplies') },
+                // 返信リスト内の「続きを表示」（ページング）
+                { name: 'ExpandNestedReplies', selector: 'ytd-comment-replies-renderer ytd-continuation-item-renderer', condition: () => this.config.get('expandNestedReplies') },
             ];
         }
 
@@ -100,7 +103,7 @@
                         observer.unobserve(target);
                         this.log('debug', 'Action target in view, clicking.', target);
                         await new Promise(resolve => setTimeout(resolve, this.config.get('clickInterval')));
-                        const clickable = target.querySelector('button, yt-button-shape') || target;
+                        const clickable = target.querySelector('button') || target.querySelector('yt-button-shape') || target;
                         clickable.click();
                     }
                 }
@@ -136,7 +139,8 @@
                 }
             }
             if (this.readMoreObserver) {
-                const readMoreSelector = '#content-text[collapsed], .more-button.ytd-comment-view-model, tp-yt-paper-button#more:not([aria-expanded="true"])';
+                // DOM変更により #content-text[collapsed] は機能しなくなったため削除し、ボタンIDを直接狙う
+                const readMoreSelector = 'ytd-expander tp-yt-paper-button#more, .more-button.ytd-comment-view-model';
                 if (node.matches(readMoreSelector)) this.readMoreObserver.observe(node);
                 node.querySelectorAll(readMoreSelector).forEach(btn => this.readMoreObserver.observe(btn));
             }
