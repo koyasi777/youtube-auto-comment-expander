@@ -21,7 +21,7 @@
 // @description:de Erweitert automatisch Kommentare, Antworten und "Weitere Antworten". Übersetzt Kommentare automatisch und bietet eine Benutzeroberfläche für Einstellungen.
 // @description:pt-BR Expande automaticamente comentários, respostas e "Mostrar mais respostas". Também traduz automaticamente e oferece uma interface de configurações na tela.
 // @description:ru Автоматически разворачивает комментарии, ответы и "Показать другие ответы". Также выполняет автоперевод и предлагает интерфейс настроек.
-// @version      6.0.0
+// @version      6.1.0
 // @namespace    https://github.com/koyasi777/youtube-auto-comment-expander
 // @author       koyasi777
 // @match        *://www.youtube.com/*
@@ -409,6 +409,11 @@
                     transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
                     -webkit-tap-highlight-color: transparent;
                 }
+                /* Shorts specific styles */
+                ytd-engagement-panel-title-header-renderer #${this.toggleContainerId} {
+                    margin-left: 8px;
+                    transform: scale(0.9);
+                }
                 #${this.toggleContainerId}:hover {
                     background-color: var(--yt-spec-mono-15, #e0e0e0);
                 }
@@ -772,7 +777,8 @@
         observeCommentsHeader(containerSelector, sortMenuSelector, sortMenuLabelSelector, insertMode) {
             waitForElement(containerSelector, (container) => {
                 this.stop();
-                const updateUI = () => this.updateCommentsHeaderUI(sortMenuSelector, sortMenuLabelSelector, insertMode);
+                // Pass the found container to updateUI so we can scope selectors
+                const updateUI = () => this.updateCommentsHeaderUI(container, sortMenuSelector, sortMenuLabelSelector, insertMode);
                 this.uiObserver = new MutationObserver(updateUI);
                 this.uiObserver.observe(container, { childList: true, subtree: true });
                 updateUI();
@@ -780,8 +786,9 @@
             });
         }
 
-        updateCommentsHeaderUI(sortMenuSelector, sortMenuLabelSelector, insertMode) {
-            const sortMenu = document.querySelector(sortMenuSelector);
+        updateCommentsHeaderUI(container, sortMenuSelector, sortMenuLabelSelector, insertMode) {
+            // Find the Sort Menu WITHIN the specific container
+            const sortMenu = container.querySelector(sortMenuSelector);
             if (!sortMenu) return;
 
             if (!document.getElementById(this.toggleContainerId)) {
@@ -796,28 +803,32 @@
                 }
             }
 
-            const label = document.querySelector(sortMenuLabelSelector);
-            if (label && label.style.display !== 'none') {
-                label.style.display = 'none';
-                this.expander.log('debug', 'Sort menu label hidden.');
+            // Hide the label if needed (for Watch page mainly)
+            if (sortMenuLabelSelector) {
+                const label = container.querySelector(sortMenuLabelSelector);
+                if (label && label.style.display !== 'none') {
+                    label.style.display = 'none';
+                    this.expander.log('debug', 'Sort menu label hidden.');
+                }
             }
         }
 
         initForWatchPage() {
             this.observeCommentsHeader(
                 'ytd-comments#comments',
-                '#comments #sort-menu',
-                '#comments #sort-menu #icon-label',
+                '#sort-menu',
+                '#sort-menu #icon-label',
                 'append'
             );
         }
 
         initForShortsPage() {
+            // Shorts uses engagement panel
             this.observeCommentsHeader(
                 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]',
-                'ytd-engagement-panel-title-header-renderer #menu',
-                'ytd-engagement-panel-title-header-renderer #menu #icon-label',
-                'after'
+                'ytd-engagement-panel-title-header-renderer #menu', // Insert relative to the menu container
+                null, // No label to hide in shorts typically or selector is different
+                'after' // Insert after the #menu div (between Sort and Close button)
             );
         }
 
@@ -856,6 +867,14 @@
             expander?.log('warn', `waitForElement timed out for selector: ${selector}`);
         }, timeout);
         observer.observe(document.body, { childList: true, subtree: true });
+
+        // Immediate check
+        const element = document.querySelector(selector);
+        if (element) {
+            clearTimeout(timeoutId);
+            observer.disconnect();
+            callback(element);
+        }
     }
 
     function getCurrentCommentsContainer() {
@@ -883,14 +902,12 @@
         setTimeout(() => {
             if (location.pathname.startsWith('/shorts/')) {
                 expander.log('info', 'Shorts page detected. Initializing...');
-                const commentsButtonSelector = '#comments-button button, #comments-button a';
-                waitForElement(commentsButtonSelector, (button) => {
-                    button.click();
-                    const commentsContainerSelector = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]';
-                    waitForElement(commentsContainerSelector, (container) => {
-                        uiManager.initForShortsPage();
-                        if (configManager.get('scriptEnabled')) expander.start(container);
-                    });
+                // Wait for the specific comments panel to exist in the DOM
+                const commentsPanelSelector = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]';
+                waitForElement(commentsPanelSelector, (container) => {
+                    // Start UI immediately as the panel might be present but hidden
+                    uiManager.initForShortsPage();
+                    if (configManager.get('scriptEnabled')) expander.start(container);
                 });
             } else if (location.pathname.startsWith('/watch')) {
                 expander.log('info', 'Watch page detected. Initializing...');
