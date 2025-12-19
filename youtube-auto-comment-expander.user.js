@@ -21,7 +21,7 @@
 // @description:de Erweitert automatisch Kommentare, Antworten und "Weitere Antworten". Übersetzt Kommentare automatisch und bietet eine Benutzeroberfläche für Einstellungen.
 // @description:pt-BR Expande automaticamente comentários, respostas e "Mostrar mais respostas". Também traduz automaticamente e oferece uma interface de configurações na tela.
 // @description:ru Автоматически разворачивает комментарии, ответы и "Показать другие ответы". Также выполняет автоперевод и предлагает интерфейс настроек.
-// @version      6.1.0
+// @version      6.1.1
 // @namespace    https://github.com/koyasi777/youtube-auto-comment-expander
 // @author       koyasi777
 // @match        *://www.youtube.com/*
@@ -393,6 +393,7 @@
             this.toggle = null;
             this.modalElements = {};
             this.uiObserver = null;
+            this.pendingWait = null; // 待機プロセス管理用
             this.staticIcon = `<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"></path></svg>`;
             this.injectStyles();
         }
@@ -775,9 +776,23 @@
         }
 
         observeCommentsHeader(containerSelector, sortMenuSelector, sortMenuLabelSelector, insertMode) {
-            waitForElement(containerSelector, (container) => {
-                this.stop();
-                // Pass the found container to updateUI so we can scope selectors
+            // 前の待機処理をキャンセル（重複防止）
+            if (this.pendingWait) {
+                this.pendingWait.abort();
+            }
+
+            // コンテナが出現するのを待機
+            this.pendingWait = waitForElement(containerSelector, (container) => {
+                this.pendingWait = null;
+
+                // コンテナが見つかったので、ここでExpanderも起動する (Logicの一元化)
+                if (this.configManager.get('scriptEnabled')) {
+                    this.expander.start(container);
+                }
+
+                this.stopUIObserver(); // 既存のUI監視があれば停止
+
+                // UIの注入処理
                 const updateUI = () => this.updateCommentsHeaderUI(container, sortMenuSelector, sortMenuLabelSelector, insertMode);
                 this.uiObserver = new MutationObserver(updateUI);
                 this.uiObserver.observe(container, { childList: true, subtree: true });
@@ -832,12 +847,22 @@
             );
         }
 
-        stop() {
+        stopUIObserver() {
             if (this.uiObserver) {
                 this.uiObserver.disconnect();
                 this.uiObserver = null;
                 this.expander.log('info', 'UI Observer stopped.');
             }
+        }
+
+        stop() {
+            // 待機中の検索を中止 (waitForElementのキャンセル)
+            if (this.pendingWait) {
+                this.pendingWait.abort();
+                this.pendingWait = null;
+            }
+
+            this.stopUIObserver();
 
             const modal = document.getElementById(this.modalId);
             if (modal) modal.remove();
@@ -851,30 +876,51 @@
     let expander = null;
     let uiManager = null;
     let currentPath = '';
+    let initTimer = null; // Timer ID for debounce/cleanup
 
     function waitForElement(selector, callback, timeout = 15000) {
         let timeoutId = null;
-        const observer = new MutationObserver((mutations, obs) => {
-            const element = document.querySelector(selector);
-            if (element) {
-                if (timeoutId) clearTimeout(timeoutId);
-                obs.disconnect();
-                callback(element);
-            }
-        });
-        timeoutId = setTimeout(() => {
-            observer.disconnect();
-            expander?.log('warn', `waitForElement timed out for selector: ${selector}`);
-        }, timeout);
-        observer.observe(document.body, { childList: true, subtree: true });
+        let observer = null;
+        let isAborted = false;
 
-        // Immediate check
+        const abort = () => {
+            if (isAborted) return;
+            isAborted = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            if (observer) {
+                observer.disconnect();
+                observer = null;
+            }
+        };
+
+        // 即時チェック
         const element = document.querySelector(selector);
         if (element) {
-            clearTimeout(timeoutId);
-            observer.disconnect();
             callback(element);
+            return { abort: () => {} };
         }
+
+        observer = new MutationObserver((mutations) => {
+            if (isAborted) return;
+            const el = document.querySelector(selector);
+            if (el) {
+                abort();
+                callback(el);
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        timeoutId = setTimeout(() => {
+            if (!isAborted) {
+                if (typeof expander !== 'undefined' && expander) {
+                    expander.log('warn', `waitForElement timed out for selector: ${selector}`);
+                }
+                abort();
+            }
+        }, timeout);
+
+        return { abort };
     }
 
     function getCurrentCommentsContainer() {
@@ -891,31 +937,37 @@
         if (currentPath === path && expander) return;
         currentPath = path;
 
-        if (expander) expander.stop();
-        if (uiManager) uiManager.stop();
+        // 前の初期化待機をキャンセル
+        if (initTimer) {
+            clearTimeout(initTimer);
+            initTimer = null;
+        }
+
+        // 既存インスタンスの完全破棄
+        if (expander) {
+            expander.stop();
+            expander = null;
+        }
+        if (uiManager) {
+            uiManager.stop(); // ここで waitForElement も abort される
+            uiManager = null;
+        }
 
         expander = new YouTubeCommentExpander(configManager);
         uiManager = new UIManager(configManager, expander);
 
         configManager.registerMenu();
 
-        setTimeout(() => {
+        initTimer = setTimeout(() => {
+            initTimer = null;
+
             if (location.pathname.startsWith('/shorts/')) {
                 expander.log('info', 'Shorts page detected. Initializing...');
-                // Wait for the specific comments panel to exist in the DOM
-                const commentsPanelSelector = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-comments-section"]';
-                waitForElement(commentsPanelSelector, (container) => {
-                    // Start UI immediately as the panel might be present but hidden
-                    uiManager.initForShortsPage();
-                    if (configManager.get('scriptEnabled')) expander.start(container);
-                });
+                // UIManagerに処理を委譲 (内部で waitForElement -> expander.start を実行)
+                uiManager.initForShortsPage();
             } else if (location.pathname.startsWith('/watch')) {
                 expander.log('info', 'Watch page detected. Initializing...');
                 uiManager.initForWatchPage();
-                const commentsContainerSelector = 'ytd-comments#comments';
-                waitForElement(commentsContainerSelector, (container) => {
-                    if (configManager.get('scriptEnabled')) expander.start(container);
-                });
             } else {
                 expander.log('info', 'Not a watch/shorts page. Script is idle.');
             }
