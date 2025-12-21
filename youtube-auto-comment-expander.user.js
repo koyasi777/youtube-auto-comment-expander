@@ -1,27 +1,27 @@
 // ==UserScript==
-// @name         YouTube コメントと返信を自動展開・翻訳 ✅
-// @name:en      YouTube Auto Expand & Translate Comments ✅
-// @name:ja      YouTube コメントと返信を自動展開・翻訳 ✅
-// @name:zh-CN   YouTube 评论自动展开与翻译 ✅
-// @name:zh-TW   YouTube 評論自動展開與翻譯 ✅
-// @name:ko      YouTube 댓글 자동 확장 및 번역 ✅
-// @name:fr      Déploiement et traduction automatique des commentaires YouTube ✅
-// @name:es      Expansión y traducción automática de comentarios de YouTube ✅
-// @name:de      Automatische Erweiterung und Übersetzung von YouTube-Kommentaren ✅
-// @name:pt-BR   Expansão e tradução automática de comentários do YouTube ✅
-// @name:ru      Авторазворачивание и перевод комментариев YouTube ✅
-// @description  YouTubeのコメント・返信・他の返信を自動展開し、翻訳ボタンも自動化。画面上のボタンで機能のON/OFFや詳細設定が可能です。
-// @description:en Automatically expands comments, replies, and "Show more replies". Also auto-translates comments and provides an on-screen settings UI.
-// @description:ja YouTubeのコメント・返信・他の返信を自動展開し、翻訳ボタンも自動化。画面上のボタンで機能のON/OFFや詳細設定が可能です。
-// @description:zh-CN 自动展开评论、回复和“显示更多回复”，并自动点击翻译按钮。提供屏幕上的设置按钮以便自定义功能。
-// @description:zh-TW 自動展開評論、回覆和「顯示更多回覆」，並自動點擊翻譯按鈕。提供螢幕上的設定按鈕以便自訂功能。
-// @description:ko YouTube 댓글, 답글 및 "답글 더보기"를 자동 확장하고 번역 버튼을 자동으로 클릭합니다. 화면 내 설정 버튼으로 기능을 제어할 수 있습니다.
-// @description:fr Déploie automatiquement les commentaires, les réponses et "Afficher plus de réponses". Traduit également automatiquement et propose une interface de paramètres.
-// @description:es Expande automáticamente comentarios, respuestas y "Mostrar más respuestas". También traduce automáticamente y ofrece una interfaz de configuración en pantalla.
-// @description:de Erweitert automatisch Kommentare, Antworten und "Weitere Antworten". Übersetzt Kommentare automatisch und bietet eine Benutzeroberfläche für Einstellungen.
-// @description:pt-BR Expande automaticamente comentários, respostas e "Mostrar mais respostas". Também traduz automaticamente e oferece uma interface de configurações na tela.
-// @description:ru Автоматически разворачивает комментарии, ответы и "Показать другие ответы". Также выполняет автоперевод и предлагает интерфейс настроек.
-// @version      6.1.2
+// @name        YouTube コメントと返信を自動展開・翻訳・並び替え ✅
+// @name:en     YouTube Auto Expand, Translate & Sort Comments ✅
+// @name:ja     YouTube コメントと返信を自動展開・翻訳・並び替え ✅
+// @name:zh-CN  YouTube 评论自动展开、翻译与排序 ✅
+// @name:zh-TW  YouTube 評論自動展開、翻譯與排序 ✅
+// @name:ko     YouTube 댓글 자동 확장, 번역 및 정렬 ✅
+// @name:fr     Déploiement, traduction et tri automatique des commentaires YouTube ✅
+// @name:es     Expansión, traducción y ordenación automática de comentarios de YouTube ✅
+// @name:de     Automatische Erweiterung, Übersetzung und Sortierung von YouTube-Kommentaren ✅
+// @name:pt-BR  Expansão, tradução e ordenação automática de comentários do YouTube ✅
+// @name:ru     Авторазворачивание, перевод и сортировка комментариев YouTube ✅
+// @description YouTubeのコメント・返信・他の返信を自動展開し、翻訳ボタンも自動化。並び替え（新しい順）の自動選択も可能です。
+// @description:en Automatically expands comments, replies, and "Show more replies". Also auto-translates comments and sorts by "Newest first".
+// @description:ja YouTubeのコメント・返信・他の返信を自動展開し、翻訳ボタンも自動化。並び替え（新しい順）の自動選択も可能です。
+// @description:zh-CN 自动展开评论、回复和“显示更多回复”，自动点击翻译按钮，并可选择自动按“最新”排序。
+// @description:zh-TW 自動展開評論、回覆和「顯示更多回覆」，自動點擊翻譯按鈕，並可選擇自動按「最新」排序。
+// @description:ko YouTube 댓글, 답글 및 "답글 더보기"를 자동 확장하고 번역 버튼을 클릭하며, "최신순" 자동 정렬 기능을 제공합니다.
+// @description:fr Déploie automatiquement les commentaires et les réponses. Traduit automatiquement et trie par "Les plus récents".
+// @description:es Expande automáticamente comentarios y respuestas. Traduce automáticamente y ordena por "Más recientes".
+// @description:de Erweitert automatisch Kommentare und Antworten. Übersetzt automatisch und sortiert nach "Neueste zuerst".
+// @description:pt-BR Expande automaticamente comentários e respostas. Traduz automaticamente e ordena por "Mais recentes".
+// @description:ru Автоматически разворачивает комментарии и ответы. Выполняет автоперевод и сортирует по "Сначала новые".
+// @version     6.2.0
 // @namespace    https://github.com/koyasi777/youtube-auto-comment-expander
 // @author       koyasi777
 // @match        *://www.youtube.com/*
@@ -72,7 +72,8 @@
                 optReplies: '返信を自動展開',
                 optNestedReplies: '「他の返信を表示」も展開',
                 optAutoTranslate: 'コメントを自動翻訳',
-                optHideOriginal: '└ "原文を見る" を非表示'
+                optHideOriginal: '└ "原文を見る" を非表示',
+                optSortByNewest: '自動で「新しい順」に並び替え'
             },
             'en': {
                 settingsCommand: '⚙️ Settings (Console)',
@@ -88,7 +89,8 @@
                 optReplies: 'Auto expand replies',
                 optNestedReplies: 'Expand "Show more replies"',
                 optAutoTranslate: 'Auto translate comments',
-                optHideOriginal: '└ Hide "Show original"'
+                optHideOriginal: '└ Hide "Show original"',
+                optSortByNewest: 'Auto sort by "Newest first"'
             },
             'zh-CN': {
                 settingsCommand: '⚙️ 设置 (控制台)',
@@ -104,7 +106,8 @@
                 optReplies: '自动展开回复',
                 optNestedReplies: '展开 "显示更多回复"',
                 optAutoTranslate: '自动翻译评论',
-                optHideOriginal: '└ 隐藏 "查看原文"'
+                optHideOriginal: '└ 隐藏 "查看原文"',
+                optSortByNewest: '自动按 "最新" 排序'
             },
             'zh-TW': {
                 settingsCommand: '⚙️ 設定 (控制台)',
@@ -120,7 +123,8 @@
                 optReplies: '自動展開回覆',
                 optNestedReplies: '展開 "顯示更多回覆"',
                 optAutoTranslate: '自動翻譯留言',
-                optHideOriginal: '└ 隱藏 "查看原文"'
+                optHideOriginal: '└ 隱藏 "查看原文"',
+                optSortByNewest: '自動按 "最新" 排序'
             },
             'ko': {
                 settingsCommand: '⚙️ 설정 (콘솔)',
@@ -136,7 +140,8 @@
                 optReplies: '답글 자동 확장',
                 optNestedReplies: '"답글 더보기" 확장',
                 optAutoTranslate: '댓글 자동 번역',
-                optHideOriginal: '└ "원본 보기" 숨기기'
+                optHideOriginal: '└ "원본 보기" 숨기기',
+                optSortByNewest: '자동으로 "최신순" 정렬'
             },
             'fr': {
                 settingsCommand: '⚙️ Paramètres (Console)',
@@ -152,7 +157,8 @@
                 optReplies: 'Développer les réponses',
                 optNestedReplies: 'Développer "Afficher d\'autres réponses"',
                 optAutoTranslate: 'Traduire automatiquement',
-                optHideOriginal: '└ Masquer "Voir l\'original"'
+                optHideOriginal: '└ Masquer "Voir l\'original"',
+                optSortByNewest: 'Trier auto par "Les plus récents"'
             },
             'es': {
                 settingsCommand: '⚙️ Configuración (Consola)',
@@ -168,7 +174,8 @@
                 optReplies: 'Expandir respuestas automáticamente',
                 optNestedReplies: 'Expandir "Mostrar más respuestas"',
                 optAutoTranslate: 'Traducir comentarios automáticamente',
-                optHideOriginal: '└ Ocultar "Ver original"'
+                optHideOriginal: '└ Ocultar "Ver original"',
+                optSortByNewest: 'Ordenar auto por "Más recientes"'
             },
             'de': {
                 settingsCommand: '⚙️ Einstellungen (Konsole)',
@@ -184,7 +191,8 @@
                 optReplies: 'Antworten automatisch erweitern',
                 optNestedReplies: '"Weitere Antworten" erweitern',
                 optAutoTranslate: 'Kommentare automatisch übersetzen',
-                optHideOriginal: '└ "Original ansehen" ausblenden'
+                optHideOriginal: '└ "Original ansehen" ausblenden',
+                optSortByNewest: 'Autom. nach "Neueste zuerst" sortieren'
             },
             'pt-BR': {
                 settingsCommand: '⚙️ Configurações (Console)',
@@ -200,7 +208,8 @@
                 optReplies: 'Expandir respostas automaticamente',
                 optNestedReplies: 'Expandir "Mostrar mais respostas"',
                 optAutoTranslate: 'Traduzir comentários automaticamente',
-                optHideOriginal: '└ Ocultar "Ver original"'
+                optHideOriginal: '└ Ocultar "Ver original"',
+                optSortByNewest: 'Ordenar auto por "Mais recentes"'
             },
             'ru': {
                 settingsCommand: '⚙️ Настройки (Консоль)',
@@ -216,7 +225,8 @@
                 optReplies: 'Автоматически разворачивать ответы',
                 optNestedReplies: 'Разворачивать "Показать другие ответы"',
                 optAutoTranslate: 'Автоперевод комментариев',
-                optHideOriginal: '└ Скрыть "Показать оригинал"'
+                optHideOriginal: '└ Скрыть "Показать оригинал"',
+                optSortByNewest: 'Автосортировка "Сначала новые"'
             }
         },
         getCurrentLangCode: function() {
@@ -246,6 +256,7 @@
                 expandNestedReplies: true,
                 autoTranslate: true,
                 hideOriginalButton: false,
+                sortByNewest: false
             };
             this.config = {};
             this.menuIds = [];
@@ -294,6 +305,7 @@
             this.mainObserver = null;
             this.actionObserver = null;
             this.readMoreObserver = null;
+            this.sortRetryTimer = null;
             this.rules = [
                 { name: 'ExpandReplies', selector: '#more-replies, #more-replies-sub-thread', condition: () => this.config.get('expandReplies') },
                 { name: 'ExpandNestedReplies', selector: 'ytd-comment-replies-renderer ytd-continuation-item-renderer', condition: () => this.config.get('expandNestedReplies') },
@@ -356,14 +368,93 @@
             this.observeNewNodes(container);
         }
 
+        // =========================================================================
+        //  Enhanced Sort Logic with Retry Mechanism
+        // =========================================================================
+        initiateSortSequence(container) {
+            if (!this.config.get('scriptEnabled') || !this.config.get('sortByNewest')) return;
+            // Only applicable on Watch page standard comments
+            if (!location.pathname.startsWith('/watch')) return;
+
+            this.log('info', 'Sort sequence initiated. Polling for sort menu...');
+            if (this.sortRetryTimer) clearTimeout(this.sortRetryTimer);
+
+            // Retry for up to 20 attempts (approx 10 seconds)
+            this.performSortAttempt(container, 0, 20);
+        }
+
+        async performSortAttempt(container, attempt, maxAttempts) {
+            if (attempt >= maxAttempts) {
+                this.log('warn', 'Sort menu never appeared or remained invalid. Giving up.');
+                return;
+            }
+
+            const sortMenu = container.querySelector('#sort-menu');
+            // If sort menu is not found or not visible yet
+            if (!sortMenu || sortMenu.offsetParent === null) {
+                this.sortRetryTimer = setTimeout(() => this.performSortAttempt(container, attempt + 1, maxAttempts), 500);
+                return;
+            }
+
+            const trigger = sortMenu.querySelector('yt-sort-filter-sub-menu-renderer tp-yt-dropdown-menu #trigger, #trigger');
+            if (!trigger) {
+                this.sortRetryTimer = setTimeout(() => this.performSortAttempt(container, attempt + 1, maxAttempts), 500);
+                return;
+            }
+
+            // Trigger found. Now checking state.
+            this.log('debug', `Sort menu found on attempt ${attempt + 1}. Checking state...`);
+
+            // Step 1: Open menu to populate items (essential for YouTube's lazy polymer)
+            trigger.click();
+
+            // Step 2: Short wait for DOM to hydrate items
+            await new Promise(r => setTimeout(r, 100));
+
+            const menuList = sortMenu.querySelector('tp-yt-paper-listbox#menu');
+            if (!menuList) {
+                // Should fail gracefully and close if something is wrong
+                trigger.click(); // close attempts
+                this.sortRetryTimer = setTimeout(() => this.performSortAttempt(container, attempt + 1, maxAttempts), 500);
+                return;
+            }
+
+            const items = menuList.querySelectorAll('a.yt-simple-endpoint');
+            if (items.length >= 2) {
+                const newestItem = items[1]; // Usually 2nd option
+                const isSelected = newestItem.classList.contains('iron-selected') || newestItem.querySelector('tp-yt-paper-item.iron-selected');
+
+                if (isSelected) {
+                    this.log('info', 'Already sorted by Newest. Closing menu.');
+                    // Close the menu by clicking the trigger again or background
+                    // Clicking trigger again is safer
+                    trigger.click();
+                } else {
+                    this.log('info', 'Sorting by Newest...');
+                    newestItem.click(); // This triggers reload.
+                    // No further retries needed as page/comments will reload
+                }
+            } else {
+                 // Items not ready? Close and retry.
+                 trigger.click();
+                 this.sortRetryTimer = setTimeout(() => this.performSortAttempt(container, attempt + 1, maxAttempts), 500);
+            }
+        }
+        // =========================================================================
+
         start(commentsContainer) {
             if (!this.config.get('scriptEnabled')) {
                 this.log('info', 'Script is disabled by toggle, not starting.');
                 return false;
             }
             if (!commentsContainer) { this.log('error', 'start() called without a valid container.'); return false; }
+
             this.stop();
             this.log('info', 'Comment container found. Starting observers.', commentsContainer);
+
+            // Initiate Sort with Retry Logic
+            this.initiateSortSequence(commentsContainer);
+
             this.setupObservers();
             this.observeNewNodes(commentsContainer);
             this.mainObserver = new MutationObserver((mutations) => {
@@ -380,6 +471,7 @@
             if (this.mainObserver) { this.mainObserver.disconnect(); this.mainObserver = null; }
             if (this.actionObserver) { this.actionObserver.disconnect(); this.actionObserver = null; }
             if (this.readMoreObserver) { this.readMoreObserver.disconnect(); this.readMoreObserver = null; }
+            if (this.sortRetryTimer) { clearTimeout(this.sortRetryTimer); this.sortRetryTimer = null; }
             this.log('info', 'All observers stopped and state reset.');
         }
     }
@@ -696,7 +788,8 @@
                 { key: 'expandReplies', label: I18n.t('optReplies') },
                 { key: 'expandNestedReplies', label: I18n.t('optNestedReplies') },
                 { key: 'autoTranslate', label: I18n.t('optAutoTranslate') },
-                { key: 'hideOriginalButton', label: I18n.t('optHideOriginal'), indent: true }
+                { key: 'hideOriginalButton', label: I18n.t('optHideOriginal'), indent: true },
+                { key: 'sortByNewest', label: I18n.t('optSortByNewest') }
             ];
 
             menuItems.forEach(item => {
@@ -723,7 +816,13 @@
                         document.body.classList.toggle('ytce-hide-original', checked);
                     } else if (checked) {
                         const container = getCurrentCommentsContainer();
-                        if (container) this.expander.processExistingNodes(container);
+                        if (container) {
+                            if (item.key === 'sortByNewest') {
+                                this.expander.initiateSortSequence(container);
+                            } else {
+                                this.expander.processExistingNodes(container);
+                            }
+                        }
                     }
                 };
 
