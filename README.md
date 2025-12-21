@@ -1,7 +1,7 @@
 # YouTube Auto Expand & Translate Comments
 **YouTube コメント自動展開・翻訳スクリプト**
 
-![Version](https://img.shields.io/badge/version-6.1.1-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Platform](https://img.shields.io/badge/platform-YouTube-red.svg)
+![Version](https://img.shields.io/badge/version-6.1.2-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Platform](https://img.shields.io/badge/platform-YouTube-red.svg)
 
 YouTubeのコメント欄における「クリックの手間」をゼロにします。
 長いコメント、返信、そして翻訳ボタン。これらすべてを自動で展開し、かつてないほどスムーズな閲覧体験を提供します。
