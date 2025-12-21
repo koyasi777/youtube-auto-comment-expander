@@ -21,7 +21,7 @@
 // @description:de Erweitert automatisch Kommentare, Antworten und "Weitere Antworten". Übersetzt Kommentare automatisch und bietet eine Benutzeroberfläche für Einstellungen.
 // @description:pt-BR Expande automaticamente comentários, respostas e "Mostrar mais respostas". Também traduz automaticamente e oferece uma interface de configurações na tela.
 // @description:ru Автоматически разворачивает комментарии, ответы и "Показать другие ответы". Также выполняет автоперевод и предлагает интерфейс настроек.
-// @version      6.1.1
+// @version      6.1.2
 // @namespace    https://github.com/koyasi777/youtube-auto-comment-expander
 // @author       koyasi777
 // @match        *://www.youtube.com/*
@@ -594,6 +594,7 @@
             switchLabel.append(checkbox, slider);
             checkbox.addEventListener('change', (e) => {
                 e.stopPropagation();
+                e.target.blur();
                 this.onMasterToggleChange(checkbox.checked);
             });
 
